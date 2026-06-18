@@ -1,0 +1,6 @@
+{
+  "name": "Friend for Life",
+  "description": "A beautifully simplified daily companion, featuring morning ratings, reflections, food pantry stock, meal plans, and weight tracking.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
