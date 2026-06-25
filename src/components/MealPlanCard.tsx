@@ -148,7 +148,7 @@ export default function MealPlanCard({
       name: manualItemName.trim(),
       qty: "Present",
       category: "Pantry Staples",
-      isGlutenFree: currentUser === "Rhon"
+      isGlutenFree: false
     };
     const updated = [...pantryList, newItem];
     setPantryList(updated);
@@ -170,7 +170,7 @@ export default function MealPlanCard({
         name: trimmed,
         qty: "Present",
         category: "Pantry Staples",
-        isGlutenFree: currentUser === "Rhon"
+        isGlutenFree: false
       });
     });
     const updated = [...pantryList, ...newItems];
@@ -261,13 +261,13 @@ export default function MealPlanCard({
     setIsPlanningMeals(true);
     setErrorText("");
 
-    // Setup quiet default instructions honoring high protein, low waste & leftovers, gluten-free context
+    // Setup quiet default instructions honoring high protein, low waste & leftovers context
     const automaticPreferences = [
       "Use Pantry First",
       "Reduce Food Waste",
       "Create Healthy, High-Protein Meals",
       "Simple Preparation",
-      currentUser === "Rhon" ? "Gluten-Free" : "Low Sugar"
+      currentUser === "Rhon" ? "Lower Sugar" : "Low Sugar"
     ];
 
     // Under-the-hood guidelines
@@ -403,7 +403,7 @@ export default function MealPlanCard({
             </div>
           </div>
           <span className="text-[10px] bg-indigo-50 text-indigo-700 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider font-mono">
-            {currentUser === "Rhon" ? "Rhonda (AA & Gluten-Free)" : "Susan (OA Support)"}
+            {currentUser === "Rhon" ? "Rhonda (AA Support)" : "Susan (OA Support)"}
           </span>
         </div>
 
@@ -502,9 +502,6 @@ export default function MealPlanCard({
                       <>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-slate-850">{item.name}</span>
-                          {item.isGlutenFree && (
-                            <span className="text-[8.5px] bg-emerald-50 text-emerald-700 font-black px-1.5 py-0.5 rounded">🌾 GF</span>
-                          )}
                         </div>
                         <div className="flex items-center gap-1">
                           <button

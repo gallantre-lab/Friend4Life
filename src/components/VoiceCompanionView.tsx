@@ -12,6 +12,7 @@ interface VoiceCompanionViewProps {
   speakText: (text: string) => void;
   isBlessyPaused: boolean;
   onTogglePauseBlessy: () => void;
+  stopSpeaking?: () => void;
 }
 
 export default function VoiceCompanionView({
@@ -24,7 +25,8 @@ export default function VoiceCompanionView({
   setMuteVoice,
   speakText,
   isBlessyPaused,
-  onTogglePauseBlessy
+  onTogglePauseBlessy,
+  stopSpeaking
 }: VoiceCompanionViewProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -108,8 +110,8 @@ export default function VoiceCompanionView({
       setInterimTranscript("");
       try {
         // Stop speech synthesis if talking so we don't listen to ourselves
-        if (window.speechSynthesis) {
-          window.speechSynthesis.cancel();
+        if (stopSpeaking) {
+          stopSpeaking();
         }
         recognitionRef.current.start();
       } catch (err) {

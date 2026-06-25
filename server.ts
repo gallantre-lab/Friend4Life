@@ -115,7 +115,7 @@ We support:
 - Habit and wellness tracking: e.g. "went for a trail walk", "completed my OA/AA reading", "slept well". Extract any noted habits as a string array "loggedHabits".
 
 DIETARY RULE:
-Rhon requires Gluten-Free (GF) strictly. So automatically set isGlutenFree: true for items that are clearly gluten-free (e.g. fresh chicken, eggs, beef patties, gluten-free pasta, mixed nuts, fresh greens, water, etc.).
+Only set specific dietary restrictions if explicitly requested by the user in their input. Otherwise, default to standard non-restricted values. Do not assume any gluten-free defaults.
 
 CATEGORY SCHEMA:
 Ensure each item is mapped to one of: "freezer" | "fridge" | "pantry" | "snacks" | "protein".
@@ -519,7 +519,7 @@ app.post("/api/affirmation", async (req, res) => {
       return res.status(400).json({ error: "Gemini API key is required" });
     }
 
-    const userName = userContext === "Rhon" ? "Rhonda (AA direction, Gluten-free, losing weight)" : "Susan (OA direction, Wegovy support)";
+    const userName = userContext === "Rhon" ? "Rhonda (AA direction, losing weight)" : "Susan (OA direction, Wegovy support)";
 
     const prompt = `
 You are Bliss, the comforting, uplifting recovery companion for Rhon and Suz.
@@ -547,6 +547,101 @@ Keep it powerful and short. Do not include markdown headers or extra conversatio
 });
 
 
+// Endpoint to handle Google Cloud Text-to-Speech synthesis resiliently
+app.post("/api/tts", async (req, res) => {
+  try {
+    const { text, title } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    const ttsApiKey = process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY;
+    if (!ttsApiKey) {
+      return res.status(400).json({ error: "No API key configured for Text-to-Speech" });
+    }
+
+    // Convert text and optional title into beautiful SSML with optimal pauses and rate/pitch adjustments
+    const cleanTitle = title ? title.replace(/[*_#`~\[\]()]/g, "").trim() : "";
+    const cleanText = text
+      .replace(/[*_#`~\[\]()]/g, "") // strip markdown
+      .replace(/[-—–]+/g, ", ")     // replace dashes with pauses
+      .trim();
+
+    // Split text into paragraphs for nice pauses between them
+    const paragraphs = cleanText
+      .split(/\n\s*\n+/)
+      .map((p: string) => p.trim())
+      .filter(Boolean);
+
+    // Build SSML
+    let ssml = `<speak>`;
+    // rate="91%" slows down the voice for a calmer, wellness/reflective feel
+    // pitch="-1.5st" slightly lowers the pitch to feel warmer, deeper, and more mature
+    ssml += `<prosody rate="91%" pitch="-1.5st">`;
+
+    if (cleanTitle) {
+      ssml += `<p><s>${cleanTitle}</s></p>`;
+      // Add a natural long pause of 1.5 seconds after the title before reading the content
+      ssml += `<break time="1500ms"/>`;
+    }
+
+    paragraphs.forEach((para: string, index: number) => {
+      ssml += `<p>${para}</p>`;
+      if (index < paragraphs.length - 1) {
+        // Comforting 850ms pause between paragraphs
+        ssml += `<break time="850ms"/>`;
+      }
+    });
+
+    ssml += `</prosody>`;
+    ssml += `</speak>`;
+
+    const requestBody = {
+      input: {
+        ssml: ssml
+      },
+      voice: {
+        languageCode: "en-US",
+        // 'en-US-Neural2-F' is an exceptionally warm, natural, high-fidelity neural female voice in US English
+        name: "en-US-Neural2-F"
+      },
+      audioConfig: {
+        audioEncoding: "MP3"
+      }
+    };
+
+    const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsApiKey}`;
+    
+    const response = await fetch(ttsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Google Cloud TTS API Error: ${response.status} - ${errorText}`);
+      return res.status(response.status).json({ 
+        error: "Google Cloud Text-to-Speech call failed", 
+        details: errorText 
+      });
+    }
+
+    const responseData = await response.json() as { audioContent: string };
+    if (!responseData || !responseData.audioContent) {
+      return res.status(500).json({ error: "No audio content returned from API" });
+    }
+
+    res.json({ audioContent: responseData.audioContent });
+  } catch (error: any) {
+    console.error("TTS endpoint exception:", error);
+    res.status(500).json({ error: "Internal server error during TTS generation", details: error.message });
+  }
+});
+
+
 // Endpoint to parse natural language food logs
 app.post("/api/food-log", async (req, res) => {
   try {
@@ -556,7 +651,7 @@ app.post("/api/food-log", async (req, res) => {
       return res.status(400).json({ error: "Gemini API key is required" });
     }
 
-    const userName = userContext === "Rhon" ? "Rhonda (gluten-free, losing weight)" : "Susan (OA direction, Wegovy)";
+    const userName = userContext === "Rhon" ? "Rhonda (losing weight)" : "Susan (OA direction, Wegovy)";
 
     const prompt = `
 You are Bliss, the cooking and nutrition assistant for ${userName}.
@@ -636,7 +731,7 @@ app.post("/api/chat", async (req, res) => {
     let activeUserSpecs = "";
     if (userContext === "rhon") {
       activeUserSpecs = `
-User focuses: Rhon (47, female, active lifestyle, gluten-free, low sugar, AA 15-years member, Vyvanse user, goal is to lose 20 lbs sustainably, self-critical, needs encouragement, loves voice/convos).
+User focuses: Rhon (47, female, active lifestyle, low sugar, AA 15-years member, Vyvanse user, goal is to lose 20 lbs sustainably, self-critical, needs encouragement, loves voice/convos).
 `;
     } else if (userContext === "suz") {
       activeUserSpecs = `
@@ -644,7 +739,7 @@ User focuses: Suz (Rhon's wife, Overeaters Anonymous member, Wegovy user, loves 
 `;
     } else {
       activeUserSpecs = `
-Couple Focus: Rhon & Suz are a solid team! Rhon (AA, 47, GF, losing 20lbs) and Suz (OA, Wegovy, loves cooking) dining and living more balanced together.
+Couple Focus: Rhon & Suz are a solid team! Rhon (AA, 47, losing 20lbs) and Suz (OA, Wegovy, loves cooking) dining and living more balanced together.
 `;
     }
 
@@ -688,7 +783,7 @@ If the user asks you to:
 - Clear or wipe the pantry (e.g., "clear pantry", "reset my kitchen")
 
 You MUST perform this action directly on the active pantry list and return the complete updated array of pantry items as "updatedPantry" in the JSON response format below.
-- Adding item: Generate a unique ID like "pt_man_xxxx" where 'xxxx' is unique. Assign the item name. The category must be one of: "Proteins", "Produce", "Dairy", "Frozen Foods", "Grains & Starches", "Pantry Staples", "Snacks" (choose the most logical). Set quantity as "Present" or what was requested. If the current user context is "rhon", set isGlutenFree: true.
+- Adding item: Generate a unique ID like "pt_man_xxxx" where 'xxxx' is unique. Assign the item name. The category must be one of: "Proteins", "Produce", "Dairy", "Frozen Foods", "Grains & Starches", "Pantry Staples", "Snacks" (choose the most logical). Set quantity as "Present" or what was requested.
 - Deleting item: Filter the list to exclude the item by name or matching substring.
 - Clearing pantry: Set target array empty.
 
@@ -764,6 +859,15 @@ Schema structure:
 
 // Serve static elements or Vite dev middleware
 async function startServer() {
+  // Version endpoint that is never cached, used by the client for checking for updates
+  app.get("/api/version", (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    res.json({ version: "1.1.2" }); // Keep this updated with the frontend bundle version
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -774,6 +878,11 @@ async function startServer() {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
+      // Set headers to strictly prevent caching of index.html in production
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("Surrogate-Control", "no-store");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

@@ -18,6 +18,7 @@ import EveningInventoryCard from "./components/EveningInventoryCard";
 import CalendarWorkspace from "./components/CalendarWorkspace";
 import JournalCard from "./components/JournalCard";
 import PinGate from "./components/PinGate";
+import CollapsibleCard from "./components/CollapsibleCard";
 
 import NotesWorkspace from "./components/NotesWorkspace";
 import ProfilesView from "./components/ProfilesView";
@@ -25,9 +26,33 @@ import DailyFoodLogCard from "./components/DailyFoodLogCard";
 import ScheduleWorkspace from "./components/ScheduleWorkspace";
 
 export default function App() {
+  const APP_VERSION = "1.1.2";
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        const res = await fetch("/api/version");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.version && data.version !== APP_VERSION) {
+            console.log(`[Version Check] New version available: ${data.version} (current: ${APP_VERSION})`);
+            setUpdateAvailable(true);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check app version:", err);
+      }
+    };
+    checkVersion();
+    const interval = setInterval(checkVersion, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [currentUser, setCurrentUser] = useState<"Rhon" | "Suz">("Rhon");
   const [muteVoice, setMuteVoice] = useState(true);
   const [isSpeakingOut, setIsSpeakingOut] = useState(false);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isBlessyPaused, setIsBlessyPaused] = useState(() => {
     return localStorage.getItem("forlife_bliss_paused") === "true";
   });
@@ -36,8 +61,11 @@ export default function App() {
     const nextVal = !isBlessyPaused;
     setIsBlessyPaused(nextVal);
     localStorage.setItem("forlife_bliss_paused", String(nextVal));
-    if (nextVal && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (nextVal) {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
       setIsSpeakingOut(false);
     }
   };
@@ -49,6 +77,44 @@ export default function App() {
     const localDate = new Date(today.getTime() - (offset * 60 * 1000));
     return localDate.toISOString().split("T")[0];
   });
+
+  const [morningCompleted, setMorningCompleted] = useState(false);
+  const [readingsCompleted, setReadingsCompleted] = useState(false);
+  const [eveningCompleted, setEveningCompleted] = useState(false);
+
+  const [morningExpanded, setMorningExpanded] = useState(true);
+  const [readingsExpanded, setReadingsExpanded] = useState(false);
+  const [eveningExpanded, setEveningExpanded] = useState(false);
+
+  // Sync completion states whenever currentUser or selectedDate changes
+  useEffect(() => {
+    const morningKey = `forlife_morning_completed_${currentUser}_${selectedDate}`;
+    const readingsKey = `forlife_readings_completed_${currentUser}_${selectedDate}`;
+    const eveningKey = `forlife_evening_completed_${currentUser}_${selectedDate}`;
+
+    const isMorningDone = localStorage.getItem(morningKey) === "true";
+    const isReadingsDone = localStorage.getItem(readingsKey) === "true";
+    const isEveningDone = localStorage.getItem(eveningKey) === "true";
+
+    setMorningCompleted(isMorningDone);
+    setReadingsCompleted(isReadingsDone);
+    setEveningCompleted(isEveningDone);
+
+    // Auto-expansion rules based on sequential step logic
+    if (!isMorningDone) {
+      setMorningExpanded(true);
+      setReadingsExpanded(false);
+      setEveningExpanded(false);
+    } else if (!isEveningDone) {
+      setMorningExpanded(false);
+      setReadingsExpanded(false);
+      setEveningExpanded(true);
+    } else {
+      setMorningExpanded(false);
+      setReadingsExpanded(false);
+      setEveningExpanded(false);
+    }
+  }, [currentUser, selectedDate]);
 
   // Current active workspace: 'home' represents the pristine launcher grid, other IDs launch full screens 
   const [activeWorkspace, setActiveWorkspace] = useState<string>("home");
@@ -197,13 +263,13 @@ export default function App() {
       currentWeight: 154,
       goalWeight: 145,
       goals: ["Sustainable weight loss", "Sober consistency", "Daily movement"],
-      glutenFree: true,
+      glutenFree: false,
       lowSugar: true,
       recoveryNote: "AA (15 yrs sober)",
       meds: "Vyvanse",
       supplements: "",
       allergies: "",
-      foodRestrictions: "Gluten-Free, lower sugar",
+      foodRestrictions: "lower sugar",
       preferences: "Enjoys voice check-ins with Bliss",
       streak: 5,
       badges: []
@@ -288,6 +354,59 @@ export default function App() {
   const [recognitionError, setRecognitionError] = useState("");
   const recognitionRef = useRef<any>(null);
 
+  // Confirmation Modal and Undo Toast State
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    onConfirm: () => void;
+    message?: string;
+  } | null>(null);
+
+  const [undoToast, setUndoToast] = useState<{
+    visible: boolean;
+    message: string;
+    onUndo: () => void;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleTrigger = (e: any) => {
+      const { onDelete, onUndo, message } = e.detail || {};
+      if (!onDelete) return;
+
+      setDeleteConfirm({
+        isOpen: true,
+        message: message || "Are you sure you want to delete this item?",
+        onConfirm: () => {
+          onDelete();
+          setDeleteConfirm(null);
+          
+          if (onUndo) {
+            setUndoToast({
+              visible: true,
+              message: message ? `${message}` : "Item deleted",
+              onUndo: () => {
+                onUndo();
+                setUndoToast(null);
+              }
+            });
+
+            // Auto dismiss toast after 6 seconds
+            setTimeout(() => {
+              setUndoToast(prev => {
+                if (prev && prev.message === (message || "Item deleted")) {
+                  return null;
+                }
+                return prev;
+              });
+            }, 6000);
+          }
+        }
+      });
+    };
+
+    window.addEventListener("trigger-delete-confirm" as any, handleTrigger);
+    return () => window.removeEventListener("trigger-delete-confirm" as any, handleTrigger);
+  }, []);
+
   // Init speech recognition
   useEffect(() => {
     const SpeechClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -338,9 +457,11 @@ export default function App() {
       setRecognitionError("");
       setMuteVoice(false);
       try {
-        if (window.speechSynthesis) {
-          window.speechSynthesis.cancel();
+        if (activeAudioRef.current) {
+          activeAudioRef.current.pause();
+          activeAudioRef.current = null;
         }
+        setIsSpeakingOut(false);
         recognitionRef.current.start();
       } catch (e) {
         console.error("Speech recognition start failed:", e);
@@ -349,35 +470,72 @@ export default function App() {
   };
 
   // TTS helper
-  const speakText = (text: string) => {
+  const speakText = async (text: string) => {
     if (localStorage.getItem("forlife_bliss_paused") === "true") return;
-    if (muteVoice || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (muteVoice) return;
+
+    // Stop active audio if any
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    setIsSpeakingOut(false);
 
     // Clean emojis
-    const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, "");
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.volume = 1;
-    utterance.rate = 1.0;
+    const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, "").trim();
+    if (!cleanText) return;
 
-    const voices = window.speechSynthesis.getVoices();
-    // Prioritize natural sounding female voices
-    const searchPatterns = ["samantha", "zira", "google us english", "female", "hazel", "natural"];
-    let preferredVoice = null;
-    for (const pattern of searchPatterns) {
-      preferredVoice = voices.find(v => v.name.toLowerCase().includes(pattern));
-      if (preferredVoice) break;
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: cleanText
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Proxy call failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.audioContent) {
+        throw new Error("No audio content in proxy response");
+      }
+
+      // Format as direct base64 source to avoid iframe and sandbox constraints
+      const dataUrl = `data:audio/mp3;base64,${data.audioContent}`;
+
+      if (!activeAudioRef.current) {
+        activeAudioRef.current = new Audio();
+      }
+
+      const audio = activeAudioRef.current;
+      audio.src = dataUrl;
+      audio.volume = 1.0;
+
+      audio.onplay = () => setIsSpeakingOut(true);
+      audio.onended = () => {
+        setIsSpeakingOut(false);
+      };
+
+      audio.onerror = () => {
+        setIsSpeakingOut(false);
+      };
+
+      setIsSpeakingOut(true);
+      await audio.play();
+    } catch (err: any) {
+      setIsSpeakingOut(false);
+      const isAbortError = err?.name === "AbortError" || err?.message?.includes("interrupted by a call to pause");
+      if (!isAbortError) {
+        console.warn("Unable to generate Google Cloud TTS for companion response:", err);
+      } else {
+        console.log("Companion audio playback was cancelled or paused gracefully.");
+      }
     }
-    if (!preferredVoice) {
-      preferredVoice = voices.find(v => v.lang.startsWith("en") && v.name.toLowerCase().includes("female"));
-    }
-    if (preferredVoice) utterance.voice = preferredVoice;
-
-    utterance.onstart = () => setIsSpeakingOut(true);
-    utterance.onend = () => setIsSpeakingOut(false);
-    utterance.onerror = () => setIsSpeakingOut(false);
-
-    window.speechSynthesis.speak(utterance);
   };
 
   // Submit trigger to Bliss
@@ -390,6 +548,12 @@ export default function App() {
       alert("Blessy is currently paused. Resume her using the button to process commands!");
       return;
     }
+
+    // Pre-initialize activeAudioRef inside user click thread to comply with browser autoplay gesture rules
+    if (!activeAudioRef.current) {
+      activeAudioRef.current = new Audio();
+    }
+    activeAudioRef.current.volume = 1.0;
 
     // Add user message to log
     const newUserMsg = { sender: "user" as const, text: cleanPrompt };
@@ -514,6 +678,31 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#fbfbfa] text-stone-900 selection:bg-stone-200 pb-16 relative font-sans">
+      
+      {/* UPDATE NOTIFICATION BANNER */}
+      {updateAvailable && (
+        <div className="bg-indigo-600 text-white text-xs py-2.5 px-4 flex items-center justify-between gap-3 font-semibold shadow-md relative z-[9999] animate-fade-in border-b border-indigo-700">
+          <div className="flex items-center gap-2 max-w-[80%]">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+            </span>
+            <span>
+              A new version of <strong>Friends for Life</strong> is available with recent updates!
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              // Refresh page while clearing cache
+              window.location.reload();
+            }}
+            className="bg-white/15 hover:bg-white/25 text-white font-extrabold px-3 py-1 rounded-xl transition text-[11px] uppercase tracking-wider shrink-0 cursor-pointer border border-white/20"
+          >
+            Refresh App
+          </button>
+        </div>
+      )}
       
       {/* Dynamic Header */}
       <header className="border-b border-stone-200 bg-white sticky top-0 z-30 shadow-3xs">
@@ -897,23 +1086,122 @@ export default function App() {
 
               {activeWorkspace === "oneday" && (
                 <div className="space-y-6">
-                  <MorningConnectionCard
-                    currentUser={currentUser}
-                    onAddJournalEntry={handleAddJournalEntry}
-                    onBlissInteract={triggerBlissSpeechInteraction}
-                  />
-                  <DailyReadingsCard
-                    currentUser={currentUser}
-                    onBlissInteract={triggerBlissSpeechInteraction}
-                    selectedDate={selectedDate}
-                    setSelectedDate={setSelectedDate}
-                    onAddEntry={handleAddJournalEntry}
-                  />
-                  <EveningInventoryCard
-                    currentUser={currentUser}
-                    onAddJournalEntry={handleAddJournalEntry}
-                    onBlissInteract={triggerBlissSpeechInteraction}
-                  />
+                  {(() => {
+                    const morningCard = morningCompleted ? (
+                      <div className="bg-emerald-50/50 border border-emerald-100 p-4.5 rounded-2xl md:rounded-3xl flex items-center justify-between shadow-3xs">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
+                            <Check className="w-5 h-5 stroke-[3px]" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-sm md:text-base text-slate-900 tracking-tight leading-snug">
+                              1. Morning Inventory – Connected with God & Intention
+                            </h3>
+                            <span className="inline-block mt-0.5 text-[10px] font-black tracking-widest uppercase text-emerald-600 font-mono">
+                              ✓ Completed for Today
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <CollapsibleCard
+                        id="morning-journey"
+                        title="1. Morning Inventory – Connect With God & Intention Setting"
+                        icon={<Sun className="w-5 h-5 text-amber-500" />}
+                        isOpen={morningExpanded}
+                        onToggle={() => setMorningExpanded(!morningExpanded)}
+                        themeColor="amber"
+                        badge="Pending Required Step"
+                      >
+                        <MorningConnectionCard
+                          currentUser={currentUser}
+                          onAddJournalEntry={handleAddJournalEntry}
+                          onBlissInteract={triggerBlissSpeechInteraction}
+                          onSaveSuccess={() => {
+                            localStorage.setItem(`forlife_morning_completed_${currentUser}_${selectedDate}`, "true");
+                            setMorningCompleted(true);
+                            setMorningExpanded(false);
+                            // Set Step 10 Evening Inventory active automatically
+                            setEveningExpanded(true);
+                          }}
+                        />
+                      </CollapsibleCard>
+                    );
+
+                    const readingsCard = (
+                      <CollapsibleCard
+                        id="daily-readings"
+                        title="2. Daily Readings & Guidance Notes (Optional)"
+                        icon={<BookOpen className="w-5 h-5 text-indigo-500" />}
+                        isOpen={readingsExpanded}
+                        onToggle={() => setReadingsExpanded(!readingsExpanded)}
+                        themeColor="indigo"
+                        badge={readingsCompleted ? "✓ Read (Completed)" : "Optional / Reviewable"}
+                      >
+                        <DailyReadingsCard
+                          currentUser={currentUser}
+                          onBlissInteract={triggerBlissSpeechInteraction}
+                          selectedDate={selectedDate}
+                          setSelectedDate={setSelectedDate}
+                          onAddEntry={handleAddJournalEntry}
+                          onCompleteSuccess={() => {
+                            localStorage.setItem(`forlife_readings_completed_${currentUser}_${selectedDate}`, "true");
+                            setReadingsCompleted(true);
+                            setReadingsExpanded(false); // Automatically minimize Daily Readings after completion
+                          }}
+                        />
+                      </CollapsibleCard>
+                    );
+
+                    const eveningCard = (
+                      <CollapsibleCard
+                        id="evening-inventory"
+                        title="3. Step 10 Evening Inventory"
+                        icon={<Moon className="w-5 h-5 text-rose-500" />}
+                        isOpen={eveningExpanded}
+                        onToggle={() => {
+                          if (morningCompleted) {
+                            setEveningExpanded(!eveningExpanded);
+                          } else {
+                            alert("Please complete 1. Morning Inventory first!");
+                          }
+                        }}
+                        themeColor="rose"
+                        badge={eveningCompleted ? "✓ Completed" : "Pending Required Step"}
+                      >
+                        <EveningInventoryCard
+                          currentUser={currentUser}
+                          onAddJournalEntry={handleAddJournalEntry}
+                          onBlissInteract={triggerBlissSpeechInteraction}
+                          onSaveSuccess={() => {
+                            // 1. Mark day as complete
+                            localStorage.setItem(`forlife_evening_completed_${currentUser}_${selectedDate}`, "true");
+                            setEveningCompleted(true);
+                            setEveningExpanded(false);
+
+                            // 2. Prepare for next day automatically
+                            const current = new Date(selectedDate + "T12:00:00");
+                            current.setDate(current.getDate() + 1);
+                            const nextDateStr = current.toISOString().split("T")[0];
+                            setSelectedDate(nextDateStr);
+
+                            // 3. System closes daily workflow and returns to home Wellness Hub bento grid
+                            setActiveWorkspace("home");
+
+                            alert("All steps completed for today! System has closed the daily workflow and prepped for tomorrow.");
+                          }}
+                        />
+                      </CollapsibleCard>
+                    );
+
+                    return (
+                      <div className="space-y-6">
+                        {morningCard}
+                        {readingsCard}
+                        {eveningCard}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1046,7 +1334,60 @@ export default function App() {
           speakText={speakText}
           isBlessyPaused={isBlessyPaused}
           onTogglePauseBlessy={handleTogglePauseBlessy}
+          stopSpeaking={() => {
+            if (activeAudioRef.current) {
+              activeAudioRef.current.pause();
+              activeAudioRef.current = null;
+            }
+            setIsSpeakingOut(false);
+          }}
         />
+      )}
+
+      {/* GLOBAL DELETE CONFIRMATION MODAL */}
+      {deleteConfirm?.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-xl">⚠️</div>
+              <h3 className="text-base font-black text-slate-900">Are you sure you want to delete this item?</h3>
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed">This action will remove the item from active records.</p>
+            </div>
+            <div className="flex gap-2 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold text-slate-600 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={deleteConfirm.onConfirm}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl shadow-sm transition cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GLOBAL UNDO TOAST */}
+      {undoToast?.visible && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white border border-slate-800 rounded-2xl shadow-xl px-4 py-3 flex items-center gap-4 z-[9999] min-w-[300px] justify-between animate-slide-up">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-400">●</span>
+            <span className="text-xs font-bold">{undoToast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={undoToast.onUndo}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 hover:text-emerald-300 border border-slate-700 text-xs font-extrabold text-white rounded-lg transition cursor-pointer uppercase tracking-wider"
+          >
+            Undo
+          </button>
+        </div>
       )}
 
     </div>

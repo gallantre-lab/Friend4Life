@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BookOpen, Calendar, HelpCircle, Loader2, Save, Send, Sparkles, ChevronDown, ChevronUp, AlertCircle, FileText } from "lucide-react";
+import { BookOpen, Calendar, HelpCircle, Loader2, Save, Send, Sparkles, ChevronDown, ChevronUp, AlertCircle, FileText, Check } from "lucide-react";
 import ReadingAudioPlayer from "./ReadingAudioPlayer";
 
 interface DailyReadingsCardProps {
@@ -8,6 +8,7 @@ interface DailyReadingsCardProps {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   onAddEntry: (content: string, type: string) => void;
+  onCompleteSuccess?: () => void;
 }
 
 interface CachedReading {
@@ -23,7 +24,8 @@ export default function DailyReadingsCard({
   onBlissInteract,
   selectedDate,
   setSelectedDate,
-  onAddEntry
+  onAddEntry,
+  onCompleteSuccess
 }: DailyReadingsCardProps) {
   // Expand state for each reading card
   const [expandedReadings, setExpandedReadings] = useState<Record<string, boolean>>({
@@ -352,7 +354,10 @@ Could you give me a very brief, warm, encouraging response?`;
                       <div className="bg-white border border-stone-200 rounded-2xl p-4.5 shadow-3xs space-y-3">
                         <div className="flex justify-between items-center pb-2 border-b border-stone-100 font-mono text-[10px] uppercase font-bold text-stone-500">
                           <span>{data.date}</span>
-                          <ReadingAudioPlayer textToRead={`${data.title}. ${data.quote ? data.quote + "." : ""} ${data.text}. ${data.focus || ""}`} title={data.title} />
+                          <ReadingAudioPlayer 
+                            textToRead={`${data.quote ? data.quote + ". " : ""}${data.text}${data.focus ? ". " + data.focus : ""}`} 
+                            title={data.title}
+                          />
                         </div>
                         
                         <h4 className="text-sm font-black text-slate-905 tracking-tight m-0 bg-stone-50 p-2.5 rounded-xl border border-stone-150">
@@ -435,6 +440,18 @@ Could you give me a very brief, warm, encouraging response?`;
           );
         })}
       </div>
+
+      {onCompleteSuccess && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={onCompleteSuccess}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-6 py-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer uppercase tracking-wider"
+          >
+            <Check className="w-4 h-4 text-emerald-100 animate-pulse" /> Done Reading: Mark Today's Readings Complete
+          </button>
+        </div>
+      )}
 
     </div>
   );

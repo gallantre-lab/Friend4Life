@@ -278,11 +278,6 @@ export default function DashboardView({
               <h2 className="text-lg font-extrabold tracking-tight">
                 {activeUserKey}'s Wellness Profile
               </h2>
-              {activeProfile.glutenFree && (
-                <span className="text-[10px] uppercase font-bold bg-emerald-900 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full">
-                  Gluten-Free 🌾
-                </span>
-              )}
             </div>
             <p className="text-xs text-slate-400 font-medium">
               Weight trend target: {activeProfile.currentWeight} lbs → Goal: <span className="text-emerald-400 font-extrabold">{activeProfile.goalWeight} lbs</span> (sustainable pacing)
@@ -572,7 +567,7 @@ export default function DashboardView({
             <textarea
               value={rawScanText}
               onChange={e => setRawScanText(e.target.value)}
-              placeholder="e.g. Paste food list from notes app: Grilled gluten free chicken thighs, half avocado, double sautéed spinach with olive oil."
+              placeholder="e.g. Paste food list from notes app: Grilled chicken thighs, half avocado, double sautéed spinach with olive oil."
               className="w-full bg-white border border-teal-250 rounded-xl p-3 text-xs text-slate-700 min-h-[90px] focus:outline-none focus:border-amber-500 resize-none"
               required
             />

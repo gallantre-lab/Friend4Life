@@ -32,7 +32,7 @@ export default function PantryCard({
   const [qty, setQty] = useState("");
   const [category, setCategory] = useState<"Proteins" | "Produce" | "Dairy" | "Frozen Foods" | "Grains & Starches" | "Pantry Staples" | "Snacks">("Pantry Staples");
   const [notes, setNotes] = useState("");
-  const [isGF, setIsGF] = useState(true);
+  const [isGF, setIsGF] = useState(false);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -186,15 +186,14 @@ export default function PantryCard({
       }
 
       const assignedCategory = getAutoCategory(parsedName);
-      const isRhondaGF = currentUser === "Rhon";
 
       const newItem: PantryItem = {
         id: "pan_" + Date.now() + Math.random().toString(36).substring(2, 6),
         name: parsedName,
         qty: parsedQty,
         category: assignedCategory,
-        notes: isRhondaGF ? "GF" : "",
-        isGlutenFree: isRhondaGF
+        notes: "",
+        isGlutenFree: false
       };
 
       newItems.push(newItem);
@@ -231,7 +230,7 @@ export default function PantryCard({
       qty: qty.trim() || "some",
       category,
       notes: notes.trim(),
-      isGlutenFree: isGF
+      isGlutenFree: false
     };
 
     const updated = [...pantryList, newItem];
@@ -401,14 +400,14 @@ export default function PantryCard({
           <form onSubmit={(e) => {
             e.preventDefault();
             if (!name.trim()) return;
-            const isRhondaGF = currentUser === "Rhon";
+            const isRhondaGF = false;
             const newItem: PantryItem = {
               id: "pan_" + Date.now() + Math.random().toString(36).substring(2, 5),
               name: name.trim(),
               qty: "some",
               category: getAutoCategory(name.trim()),
-              notes: isRhondaGF ? "GF" : "",
-              isGlutenFree: isRhondaGF
+              notes: "",
+              isGlutenFree: false
             };
             const updated = [...pantryList, newItem];
             setPantryList(updated);
@@ -645,7 +644,6 @@ export default function PantryCard({
                           <span className={`uppercase font-black px-1 rounded-sm border ${categoriesColors[item.category] || "bg-stone-50 text-stone-800"}`}>
                             {item.category}
                           </span>
-                          {item.isGlutenFree && <span className="text-emerald-800 font-extrabold">🌾 GF</span>}
                           {item.notes && <span className="italic">({item.notes})</span>}
                         </div>
                       </div>

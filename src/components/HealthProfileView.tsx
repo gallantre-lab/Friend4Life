@@ -50,7 +50,7 @@ export default function HealthProfileView({
       currentWeight: parseFloat(currentWeight) || 150,
       goalWeight: parseFloat(goalWeight) || 135,
       recoveryNote,
-      glutenFree: foodRestrictions.toLowerCase().includes("gluten"),
+      glutenFree: false,
       lowSugar: foodRestrictions.toLowerCase().includes("sugar") || foodRestrictions.toLowerCase().includes("carb")
     });
 
@@ -243,7 +243,7 @@ export default function HealthProfileView({
                 type="text"
                 value={foodRestrictions}
                 onChange={e => setFoodRestrictions(e.target.value)}
-                placeholder="e.g. Gluten-Free (GF), Lower sugar, Lower carb"
+                placeholder="e.g. Lower sugar, Lower carb"
                 className="w-full bg-slate-800 text-slate-100 border border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-emerald-400"
               />
             </div>

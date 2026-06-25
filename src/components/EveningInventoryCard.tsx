@@ -5,6 +5,7 @@ interface EveningInventoryCardProps {
   currentUser: "Rhon" | "Suz";
   onAddJournalEntry: (content: string, type: string) => void;
   onBlissInteract: (text: string) => void;
+  onSaveSuccess?: () => void;
 }
 
 interface EveningRatingLog {
@@ -36,7 +37,8 @@ interface EveningRatingLog {
 export default function EveningInventoryCard({
   currentUser,
   onAddJournalEntry,
-  onBlissInteract
+  onBlissInteract,
+  onSaveSuccess
 }: EveningInventoryCardProps) {
   // 1-10 Rating states
   const [energy, setEnergy] = useState<number>(5);
@@ -167,6 +169,8 @@ Could you give me a very brief, comforting, blessing-filled evening sign-off to 
     setWinsOfDay("");
     setLessonsLearned("");
     setGratitudeList("");
+
+    onSaveSuccess?.();
 
     setTimeout(() => {
       setIsSaved(false);

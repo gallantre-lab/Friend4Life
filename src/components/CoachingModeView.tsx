@@ -56,7 +56,7 @@ export default function CoachingModeView({
   const triggerEveningPlanning = () => {
     const missedTargets: string[] = [];
     if (todayWater < 64) missedTargets.push("Hydration target (~64oz)");
-    if (todayProtein < 90) missedTargets.push("Gluten-free lean protein target (~90g)");
+    if (todayProtein < 90) missedTargets.push("Lean protein target (~90g)");
     if (todayExercise < 30) missedTargets.push("Realistic daily movement (~30 mins)");
 
     const achievedTargets: string[] = [];
@@ -143,7 +143,7 @@ export default function CoachingModeView({
                   className="w-full bg-white border border-slate-200 rounded-lg text-xs p-1.5 font-bold text-slate-700 focus:outline-none"
                 >
                   <option value={70}>70g protein basis</option>
-                  <option value={90}>90g standard (Gluten-free balance)</option>
+                  <option value={90}>90g standard balance</option>
                   <option value={110}>110g high loading portion</option>
                 </select>
               </div>
@@ -211,7 +211,7 @@ export default function CoachingModeView({
             <div className="bg-white rounded-3xl p-5 border border-slate-150 shadow-sm space-y-3">
               <span className="text-xs font-black uppercase tracking-wider text-slate-400 block border-b border-slate-100 pb-1">Bliss's Morning Mantra</span>
               <p className="text-xs text-slate-600 leading-relaxed italic">
-                "Good morning Rhon and Suz! Lacing up those sneakers? We don't restrict, and we don't stress. We load up proteins, stay gluten-free, and surrender worries. Progress beats perfection!"
+                "Good morning Rhon and Suz! Lacing up those sneakers? We don't restrict, and we don't stress. We load up proteins, stay consistent, and surrender worries. Progress beats perfection!"
               </p>
               <div className="bg-amber-50 rounded-2xl p-2.5 text-[11px] text-amber-900 leading-normal border border-amber-100/50">
                 <strong>💡 Quick Tip:</strong> Click the button above to let Bliss parse these goals straight into your live coaching dialogue.

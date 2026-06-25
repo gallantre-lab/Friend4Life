@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Play, Square, Loader2 } from "lucide-react";
 
 interface PlayRecoveryTimeButtonProps {
@@ -9,6 +9,18 @@ interface PlayRecoveryTimeButtonProps {
 
 export default function PlayRecoveryTimeButton({ currentUser, selectedDate, journalEntries }: PlayRecoveryTimeButtonProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      // Clean up audio references on unmount
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const getCachedReading = (type: string) => {
     const key = `forlife_cache_reading_${type}_${selectedDate}`;
@@ -27,7 +39,7 @@ export default function PlayRecoveryTimeButton({ currentUser, selectedDate, jour
     return localStorage.getItem(notesKey) || "";
   };
 
-  const attemptPlaySequential = () => {
+  const attemptPlaySequential = async () => {
     const parts = [];
     
     // Add primary reading based on user
@@ -70,41 +82,79 @@ export default function PlayRecoveryTimeButton({ currentUser, selectedDate, jour
       return;
     }
 
-    if (localStorage.getItem("forlife_bliss_paused") === "true") {
-      alert("Blessy is currently paused. Resume her to play daily readings and journals!");
-      return;
-    }
+    // Stop existing audio if any
+    handleStop();
 
-    speechSynthesis.cancel();
-    
+    // Create / fetch audioRef inside user click context to comply with browser autoplay gesture rules
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+    audioRef.current.volume = 1.0;
+
+    setIsLoading(true);
     // Clean string for speech
     const combinedText = parts.join(". ").replace(/[*_#\[\]\-]/g, "");
-    const utterance = new SpeechSynthesisUtterance(combinedText);
-    utterance.rate = 1.0;
 
-    // Load consistent natural female voice
-    const voices = speechSynthesis.getVoices();
-    const searchPatterns = ["samantha", "zira", "google us english", "female", "hazel", "natural"];
-    let preferredVoice = null;
-    for (const pattern of searchPatterns) {
-      preferredVoice = voices.find(v => v.name.toLowerCase().includes(pattern));
-      if (preferredVoice) break;
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: combinedText,
+          title: "Today's Recovery Reflection"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Proxy call failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.audioContent) {
+        throw new Error("No audio content received from server.");
+      }
+
+      // Standard base64 direct source URI to avoid iframe blob sandbox blocks
+      const dataUrl = `data:audio/mp3;base64,${data.audioContent}`;
+
+      const audio = audioRef.current;
+      audio.src = dataUrl;
+      audio.volume = 1.0;
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setIsLoading(false);
+      };
+
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setIsLoading(false);
+      };
+
+      setIsLoading(false);
+      setIsPlaying(true);
+      await audio.play();
+    } catch (err: any) {
+      setIsLoading(false);
+      const isAbortError = err?.name === "AbortError" || err?.message?.includes("interrupted by a call to pause");
+      if (isAbortError) {
+        console.log("Recovery time audio playback was cancelled or paused gracefully.");
+        return;
+      }
+      console.error("Google Cloud TTS sequential playback failed:", err);
+      alert("Unable to play recovery time audio right now. Please verify your Internet connection and API credentials.");
     }
-    if (!preferredVoice) {
-      preferredVoice = voices.find(v => v.lang.startsWith("en") && v.name.toLowerCase().includes("female"));
-    }
-    if (preferredVoice) utterance.voice = preferredVoice;
-    
-    utterance.onend = () => setIsPlaying(false);
-    utterance.onerror = () => setIsPlaying(false);
-    
-    speechSynthesis.speak(utterance);
-    setIsPlaying(true);
   };
 
   const handleStop = () => {
-    speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
     setIsPlaying(false);
+    setIsLoading(false);
   };
 
   return (
@@ -115,7 +165,14 @@ export default function PlayRecoveryTimeButton({ currentUser, selectedDate, jour
       </div>
       
       <div className="flex gap-2">
-        {!isPlaying ? (
+        {isLoading ? (
+          <button 
+            disabled
+            className="flex items-center gap-1.5 bg-indigo-100 text-indigo-400 px-4 py-2 rounded-xl text-xs font-black cursor-not-allowed animate-pulse"
+          >
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Preparing Audio...
+          </button>
+        ) : !isPlaying ? (
           <button 
             onClick={attemptPlaySequential}
             className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer"

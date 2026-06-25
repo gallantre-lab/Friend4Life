@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { UserProfile, WeightRecord } from "../types";
 import { 
   User, CheckCircle2, Heart, Award, Shield, 
-  Trash2, Scale, Flame, RefreshCw, PlusCircle, Compass 
+  Trash2, Scale, Flame, RefreshCw, PlusCircle, Compass,
+  Copy, Check, Database, Smartphone, Laptop, AlertCircle, Download, Upload
 } from "lucide-react";
 
 interface ProfilesViewProps {
@@ -30,6 +31,76 @@ export default function ProfilesView({
   const [weightNotes, setWeightNotes] = useState("");
   const [logDate, setLogDate] = useState(() => new Date().toISOString().substring(0, 10));
   const [editingUser, setEditingUser] = useState<"rhon" | "suz" | null>(null);
+
+  // Sync / Backup state and handlers
+  const [backupString, setBackupString] = useState("");
+  const [importString, setImportString] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const handleGenerateBackup = () => {
+    try {
+      const backupData: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("forlife_")) {
+          const val = localStorage.getItem(key);
+          if (val !== null) {
+            backupData[key] = val;
+          }
+        }
+      }
+      const jsonString = JSON.stringify(backupData);
+      const base64String = btoa(unescape(encodeURIComponent(jsonString)));
+      setBackupString(base64String);
+      setSyncStatus(null);
+      setSyncError(null);
+    } catch (err) {
+      console.error(err);
+      setSyncError("Failed to bundle backup data. Please try again.");
+    }
+  };
+
+  const handleCopyBackup = () => {
+    if (!backupString) return;
+    navigator.clipboard.writeText(backupString);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleImportBackup = () => {
+    if (!importString.trim()) {
+      setSyncError("Please paste a valid backup sync code first.");
+      return;
+    }
+    try {
+      const decodedJson = decodeURIComponent(escape(atob(importString.trim())));
+      const backupData = JSON.parse(decodedJson) as Record<string, string>;
+      if (!backupData || typeof backupData !== "object") {
+        throw new Error("Invalid format");
+      }
+      const keys = Object.keys(backupData);
+      const hasForLifeKeys = keys.some(k => k.startsWith("forlife_"));
+      if (!hasForLifeKeys) {
+        throw new Error("No keys found");
+      }
+      keys.forEach(key => {
+        if (key.startsWith("forlife_")) {
+          localStorage.setItem(key, backupData[key]);
+        }
+      });
+      setSyncStatus("✅ Success! Your device synced successfully. Reloading...");
+      setSyncError(null);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      setSyncError("Invalid backup sync code. Please make sure you copied the full code from your other device.");
+      setSyncStatus(null);
+    }
+  };
 
   // Profile fields editing
   const [editAge, setEditAge] = useState(47);
@@ -189,7 +260,7 @@ export default function ProfilesView({
             <div className="pt-1">
               <span className="font-semibold text-slate-700 text-xs uppercase tracking-wider block mb-0.5">Preferences & Food</span>
               <p className="text-xs text-slate-500 italic bg-amber-50/50 p-2 rounded-xl text-amber-900 border border-amber-100/50">
-                {rhonProfile.preferences || "Gluten-Free, lower sugar. Enjoys voice check-ins with Bliss."}
+                {rhonProfile.preferences || "Lower sugar. Enjoys voice check-ins with Bliss."}
               </p>
             </div>
           </div>
@@ -308,7 +379,7 @@ export default function ProfilesView({
                 type="text" 
                 value={editPreferences} 
                 onChange={e => setEditPreferences(e.target.value)}
-                placeholder="e.g. Lower sugar, gluten-free"
+                placeholder="e.g. Lower sugar, organic focus"
                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700"
               />
             </div>
@@ -522,6 +593,123 @@ export default function ProfilesView({
               )}
             </div>
           </div>
+        </div>
+
+        {/* DEVICE SYNCHRONIZATION & BACKUPS */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6 mt-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center text-indigo-400">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white tracking-tight">Cross-Device Synchronization</h3>
+              <p className="text-[11px] text-slate-400 font-medium">Migrate your active payments, schedules, weight records, and profiles between desktop and mobile</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
+            <div className="flex items-start gap-2.5 text-slate-300 leading-relaxed">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-200 mb-1">Why do my desktop changes not show up on mobile?</p>
+                <p>
+                  To maximize privacy, all records (such as bill payments, food logs, and health settings) are stored **completely locally inside your browser's private storage (localStorage)** on this specific device. They do not automatically sync to other devices.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Export Section */}
+            <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Laptop className="w-4 h-4 text-slate-400" /> 1. Export Data from this Device
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Generate a secure sync code containing all of your local payments, active schedules, baseline records, and logs.
+              </p>
+              
+              {!backupString ? (
+                <button
+                  type="button"
+                  onClick={handleGenerateBackup}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  Generate Sync Code
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <textarea
+                    readOnly
+                    value={backupString}
+                    className="w-full h-16 p-2 bg-slate-900 border border-slate-700 rounded-xl text-[10px] font-mono text-slate-300 focus:outline-none resize-none"
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyBackup}
+                    className={`w-full py-2.5 font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer ${
+                      copied ? "bg-emerald-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Copied to Clipboard!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Copy Sync Code
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Import Section */}
+            <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800 space-y-4">
+              <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-slate-400" /> 2. Import Data to this Device
+              </span>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Paste the sync code generated from your other device below to instantly restore or synchronize your workspace.
+              </p>
+              
+              <div className="space-y-2">
+                <textarea
+                  placeholder="Paste secure sync code here..."
+                  value={importString}
+                  onChange={(e) => setImportString(e.target.value)}
+                  className="w-full h-16 p-2 bg-slate-900 border border-slate-750 focus:border-slate-650 rounded-xl text-[10px] font-mono text-slate-300 placeholder:text-slate-600 focus:outline-none resize-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleImportBackup}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  Import & Apply Sync Code
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sync Status / Error messages */}
+          {syncStatus && (
+            <div className="p-3 bg-emerald-950/40 border border-emerald-900/50 rounded-xl text-xs text-emerald-200 text-center font-bold">
+              {syncStatus}
+            </div>
+          )}
+          {syncError && (
+            <div className="p-3 bg-rose-950/40 border border-rose-900/50 rounded-xl text-xs text-rose-200 text-center font-bold">
+              {syncError}
+            </div>
+          )}
         </div>
 
         {/* Coach Advice Banner */}

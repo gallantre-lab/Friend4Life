@@ -6,6 +6,7 @@ interface MorningConnectionCardProps {
   currentUser: "Rhon" | "Suz";
   onAddJournalEntry: (content: string, type: string) => void;
   onBlissInteract: (text: string) => void;
+  onSaveSuccess?: () => void;
 }
 
 interface MorningRatingLog {
@@ -33,7 +34,8 @@ interface MorningRatingLog {
 export default function MorningConnectionCard({
   currentUser,
   onAddJournalEntry,
-  onBlissInteract
+  onBlissInteract,
+  onSaveSuccess
 }: MorningConnectionCardProps) {
   // 1-10 Rating states
   const [energy, setEnergy] = useState<number>(8);
@@ -140,7 +142,6 @@ Ratings: Energy: ${energy}/10, Anxiety: ${anxiety}/10
 
 🎯 INTENTION SETTING:
 - What is most important today?: "${mostImportant.trim() || "(None)"}"
-- How can I be of service today?: "${beOfService.trim() || "(None)"}"
 - Character trait I want to practice: "${characterTrait.trim() || "(None)"}"
 - What I am asking my Higher Power to help me with: "${higherPowerHelp.trim() || "(None)"}"
 
@@ -153,7 +154,7 @@ Ratings: Energy: ${energy}/10, Anxiety: ${anxiety}/10
     const userDisplayName = currentUser === "Rhon" ? "Rhonda" : "Susan";
     const blissPrompt = `Hey Bliss! I just completed my comprehensive Morning Inventory (${userDisplayName}). 
 My ratings are Energy: ${energy}/10, Anxiety: ${anxiety}/10. 
-Here are my intentions for today: I want to practice "${characterTrait || "acceptance"}" and be of service by "${beOfService || "spreading kind words"}".
+Here are my intentions for today: I want to practice "${characterTrait || "acceptance"}".
 My daily focus is "${spiritualFocus || "trusting God's plan"}".
 My affirmation is: "${personalizedAffirmation || "I am grounded and safe"}".
 
@@ -171,6 +172,8 @@ Could you provide a swift, encouraging morning word for my day?`;
     setCharacterTrait("");
     setHigherPowerHelp("");
     setPersonalizedAffirmation("");
+
+    onSaveSuccess?.();
 
     setTimeout(() => {
       setIsSaved(false);
@@ -320,17 +323,6 @@ Could you provide a swift, encouraging morning word for my day?`;
                 value={mostImportant}
                 onChange={(e) => setMostImportant(e.target.value)}
                 placeholder="Your primary recovery or life priority..."
-                className="w-full bg-white border border-sky-200 focus:bg-sky-50/50 focus:border-sky-400 focus:outline-none rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-850"
-              />
-            </div>
-
-            <div>
-              <span className="block text-[10px] font-black text-sky-800 mb-1">How can I be of service today?</span>
-              <input
-                type="text"
-                value={beOfService}
-                onChange={(e) => setBeOfService(e.target.value)}
-                placeholder="An act of kindness, sponsor check-in, or supportive call..."
                 className="w-full bg-white border border-sky-200 focus:bg-sky-50/50 focus:border-sky-400 focus:outline-none rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-850"
               />
             </div>
