@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-friend4life-dbca997e-0c97-466d-a406-063d47fd0f7e",
+      "rules": "firestore.rules"
+    }
+  ]
+}

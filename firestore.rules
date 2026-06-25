@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidLocalStorageItem(data) {
+      return data.keys().hasAll(['value', 'updatedAt', 'clientId']) 
+        && data.keys().size() == 3
+        && data.value is string && data.value.size() <= 1048576
+        && (data.updatedAt is int || data.updatedAt is float)
+        && data.clientId is string && data.clientId.size() <= 128;
+    }
+
+    // Local Storage collection
+    match /local_storage/{key} {
+      allow get, list: if true;
+      allow create: if isValidId(key) && isValidLocalStorageItem(incoming());
+      allow update: if isValidId(key) && isValidLocalStorageItem(incoming()) 
+        && incoming().diff(existing()).affectedKeys().hasOnly(['value', 'updatedAt', 'clientId']);
+      allow delete: if true;
+    }
+  }
+}

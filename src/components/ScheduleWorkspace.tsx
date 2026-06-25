@@ -587,7 +587,7 @@ export default function ScheduleWorkspace() {
     const totalRemaining = totalScheduled - totalCompleted;
 
     const totalIncome = rhonPay + suzPay;
-    const remainingMoney = totalIncome - totalRemaining;
+    const remainingMoney = totalIncome - totalScheduled;
 
     return {
       totalScheduled,
@@ -1418,15 +1418,15 @@ export default function ScheduleWorkspace() {
 
             <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-sm text-white space-y-4">
               <div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Scheduled</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Scheduled Bills</p>
                 <p className="text-xl font-black">${totals.totalScheduled}</p>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="font-semibold text-slate-300">Completed</span>
+                <span className="font-semibold text-slate-300">Total Paid</span>
                 <span className="font-bold text-emerald-400">${totals.totalCompleted}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="font-semibold text-slate-300">Remaining to Pay</span>
+                <span className="font-semibold text-slate-300">Remaining To Pay</span>
                 <span className="font-bold text-rose-400">${totals.totalRemaining}</span>
               </div>
               

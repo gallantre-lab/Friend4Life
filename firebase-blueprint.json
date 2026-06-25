@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "LocalStorageItem": {
+      "title": "LocalStorageItem",
+      "description": "A single key-value entry representing synced local storage.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The stringified JSON payload stored in local storage."
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Epoch timestamp of when this item was written."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Unique identifier for the browser tab/client session to prevent echoing."
+        }
+      },
+      "required": ["value", "updatedAt", "clientId"]
+    }
+  },
+  "firestore": {
+    "local_storage/{key}": {
+      "schema": "LocalStorageItem",
+      "description": "Real-time sync table mapping localStorage keys to values."
+    }
+  }
+}

@@ -24,10 +24,26 @@ import NotesWorkspace from "./components/NotesWorkspace";
 import ProfilesView from "./components/ProfilesView";
 import DailyFoodLogCard from "./components/DailyFoodLogCard";
 import ScheduleWorkspace from "./components/ScheduleWorkspace";
+import { uploadKeyToCloud, setupCloudSyncListener } from "./firebase";
+
+// Global interception of localStorage.setItem to sync automatically to the cloud (Firestore)
+const originalSetItem = window.localStorage.setItem;
+window.localStorage.setItem = function(key: string, value: string) {
+  originalSetItem.call(window.localStorage, key, value);
+  uploadKeyToCloud(key, value);
+};
+
+// Global interception of localStorage.removeItem to clear sync values on deletions
+const originalRemoveItem = window.localStorage.removeItem;
+window.localStorage.removeItem = function(key: string) {
+  originalRemoveItem.call(window.localStorage, key);
+  uploadKeyToCloud(key, "");
+};
 
 export default function App() {
   const APP_VERSION = "1.1.2";
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [syncVersion, setSyncVersion] = useState(0);
 
   useEffect(() => {
     const checkVersion = async () => {
@@ -115,7 +131,7 @@ export default function App() {
       setReadingsExpanded(false);
       setEveningExpanded(false);
     }
-  }, [currentUser, selectedDate]);
+  }, [currentUser, selectedDate, syncVersion]);
 
   // Current active workspace: 'home' represents the pristine launcher grid, other IDs launch full screens 
   const [activeWorkspace, setActiveWorkspace] = useState<string>("home");
@@ -348,6 +364,35 @@ export default function App() {
       { sender: "bliss", text: "Welcome! Bliss here, your supportive companion and recovery guide. ☀️ Tell me what's on your mind, update your pantry, or let's outline our healthy meal plans!" }
     ];
   });
+
+  // Setup real-time cloud data sync listener
+  useEffect(() => {
+    const unsubscribe = setupCloudSyncListener((key, value) => {
+      console.log(`[Cloud Sync] Received update for key: ${key}`);
+      
+      // Update matching local React states in App.tsx if they are actively loaded
+      if (key === "forlife_rhon_profile_v3") {
+        try { setRhonProfile(JSON.parse(value)); } catch (e) {}
+      } else if (key === "forlife_suz_profile_v3") {
+        try { setSuzProfile(JSON.parse(value)); } catch (e) {}
+      } else if (key === "forlife_pantry_v3") {
+        try { setPantryList(JSON.parse(value)); } catch (e) {}
+      } else if (key === "forlife_weight_history_v3") {
+        try { setWeightHistory(JSON.parse(value)); } catch (e) {}
+      } else if (key === "forlife_journal_entries_v3") {
+        try { setJournalEntries(JSON.parse(value)); } catch (e) {}
+      } else if (key === "forlife_bliss_chat_history") {
+        try { setChatHistory(JSON.parse(value)); } catch (e) {}
+      } else if (key === "forlife_bliss_paused") {
+        setIsBlessyPaused(value === "true");
+      }
+      
+      // Force workspace and card remounts/re-evaluations to pull the fresh localStorage values
+      setSyncVersion((v) => v + 1);
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   const [inputText, setInputText] = useState("");
   const [isProcessingChat, setIsProcessingChat] = useState(false);
@@ -990,7 +1035,7 @@ export default function App() {
             </div>
 
             {/* Sub-panels display */}
-            <div className="bg-white border border-stone-200 p-5 rounded-3xl shadow-3xs min-h-[400px]">
+            <div key={syncVersion} className="bg-white border border-stone-200 p-5 rounded-3xl shadow-3xs min-h-[400px]">
               {activeWorkspace === "chat" && (
                 <div className="space-y-4">
                   <div className="flex flex-col items-center justify-center py-2.5 bg-slate-50 border border-stone-150 rounded-2xl">
