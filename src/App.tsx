@@ -33,9 +33,10 @@ export default function App() {
     const checkVersion = async () => {
       try {
         const res = await fetch("/api/version");
-        if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
           const data = await res.json();
-          if (data.version && data.version !== APP_VERSION) {
+          if (data && data.version && data.version !== APP_VERSION) {
             console.log(`[Version Check] New version available: ${data.version} (current: ${APP_VERSION})`);
             setUpdateAvailable(true);
           }
@@ -706,24 +707,24 @@ export default function App() {
       
       {/* Dynamic Header */}
       <header className="border-b border-stone-200 bg-white sticky top-0 z-30 shadow-3xs">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <label className="cursor-pointer relative group/seclogo flex items-center shrink-0" title="Click to Change Secondary Logo">
-              <img src={secondaryLogo} alt="Friend4Life Secondary Logo" className="h-10 w-10 object-cover rounded-xl shadow-sm transition-transform group-hover/seclogo:scale-105" />
-              <div className="absolute inset-0 bg-slate-955/65 rounded-xl flex items-center justify-center opacity-0 group-hover/seclogo:opacity-100 transition-opacity">
+        <div className="max-w-5xl mx-auto px-4 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
+          <div className="flex flex-col sm:flex-row items-center gap-3 text-center sm:text-left">
+            <label className="cursor-pointer relative group/seclogo flex items-center justify-center shrink-0 p-1" title="Click to Change Secondary Logo">
+              <img src={secondaryLogo} alt="Friend4Life Secondary Logo" className="w-[10vw] max-w-[40px] min-w-[32px] h-auto max-w-full object-contain rounded-xl shadow-sm transition-transform group-hover/seclogo:scale-105" />
+              <div className="absolute inset-1 bg-slate-955/65 rounded-xl flex items-center justify-center opacity-0 group-hover/seclogo:opacity-100 transition-opacity">
                 <Camera className="w-3.5 h-3.5 text-white" />
               </div>
               <input type="file" accept="image/*" className="hidden" aria-label="Upload secondary logo" onChange={handleSecondaryLogoUpload} />
             </label>
             <span 
               onClick={() => setActiveWorkspace("home")}
-              className="text-xs font-black tracking-wider uppercase text-slate-800 font-mono cursor-pointer hover:opacity-80 transition"
+              className="text-xs font-black tracking-wider uppercase text-slate-800 font-mono cursor-pointer hover:opacity-80 transition block w-full text-center sm:text-left py-1"
             >
               Friend4Life
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
             {/* Realtime Date display */}
             <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 bg-stone-50 border border-stone-200 rounded-xl text-[11px] font-black uppercase text-stone-500 font-mono">
               <Calendar className="w-3.5 h-3.5 text-stone-400" /> {getReadableFormattedDate()}
@@ -737,7 +738,7 @@ export default function App() {
                 className={`px-3 py-1.2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
                   currentUser === "Rhon" 
                     ? "bg-slate-950 text-white shadow-xs" 
-                    : "text-slate-500 hover:text-slate-800"
+                    : "text-slate-505 hover:text-slate-800"
                 }`}
               >
                 Rhonda
@@ -766,10 +767,10 @@ export default function App() {
           <div className="space-y-6">
             
             {/* Quick Greeting Panel */}
-            <div className="flex flex-col items-center justify-center pt-2 pb-6">
-                <label className="cursor-pointer relative inline-block group/logo text-center" title="Click to Change Primary Logo">
-                  <img src={primaryLogo} alt="Friend4Life Primary Logo" className="h-36 w-36 object-cover rounded-full shadow-md drop-shadow-sm transition-opacity group-hover/logo:opacity-80 mx-auto" />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
+            <div className="flex flex-col items-center justify-center pt-2 pb-6 px-4">
+                <label className="cursor-pointer relative inline-block group/logo text-center p-2" title="Click to Change Primary Logo">
+                  <img src={primaryLogo} alt="Friend4Life Primary Logo" className="w-[30vw] max-w-[144px] min-w-[96px] h-auto max-w-full object-contain rounded-full shadow-md drop-shadow-sm transition-opacity group-hover/logo:opacity-80 mx-auto" />
+                  <div className="absolute inset-2 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
                     <div className="bg-slate-900/70 text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1">
                       <Camera className="w-3 h-3" /> Change Primary Logo
                     </div>
