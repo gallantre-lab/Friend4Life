@@ -144,7 +144,8 @@ const defaultDebtAccounts: DebtAccount[] = [
   { id: "acc_8", name: "SG Scotia Visa", category: "Credit Card", creditLimit: 1000, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Susan small credit line", isArchived: false },
   { id: "acc_9", name: "RG Car", category: "Auto Loan", creditLimit: 32000, currentBalance: 32000, startingBalance: 33000, interestRate: 5.00, biweeklyPayment: 214, notes: "Rhonda SUV auto loan", isArchived: false, lastAutoProcessed: "2026-06-15" },
   { id: "acc_10", name: "SG Car", category: "Auto Loan", creditLimit: 38000, currentBalance: 38000, startingBalance: 39000, interestRate: 5.00, biweeklyPayment: 245, notes: "Susan crossover auto loan", isArchived: false, lastAutoProcessed: "2026-06-15" },
-  { id: "acc_11", name: "Mortgage", category: "Mortgage", creditLimit: 318081.21, currentBalance: 318081.21, startingBalance: 319081.21, interestRate: 4.74, biweeklyPayment: 771.86, notes: "Shared home mortgage loan", isArchived: false, lastAutoProcessed: "2026-06-01" }
+  { id: "acc_11", name: "Mortgage", category: "Mortgage", creditLimit: 318081.21, currentBalance: 318081.21, startingBalance: 319081.21, interestRate: 4.74, biweeklyPayment: 771.86, notes: "Shared home mortgage loan", isArchived: false, lastAutoProcessed: "2026-06-01" },
+  { id: "acc_12", name: "SG Student Loan", category: "Personal Loan", creditLimit: 100000, currentBalance: 40500, startingBalance: 100000, interestRate: 5.80, biweeklyPayment: 0, notes: "Susan student loan, SG (Distress Relief)", isArchived: false }
 ];
 
 const defaultSavingsAccounts: SavingsAccount[] = [
@@ -223,8 +224,46 @@ export default function ScheduleWorkspace() {
   // DEBT TRACKER STATES
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(() => {
     const saved = localStorage.getItem("forlife_debt_accounts_v2");
-    if (saved) return JSON.parse(saved);
-    return defaultDebtAccounts;
+    let current: DebtAccount[] = [];
+    if (saved) {
+      try {
+        current = JSON.parse(saved);
+      } catch (e) {
+        current = [...defaultDebtAccounts];
+      }
+    } else {
+      current = [...defaultDebtAccounts];
+    }
+
+    // Self-healing: ensure Susan's student loan exists and has correct Distress Relief properties
+    const studentLoanIndex = current.findIndex(
+      (a) => a.name.toLowerCase().includes("student loan") || a.id === "acc_12"
+    );
+    if (studentLoanIndex === -1) {
+      current.push({
+        id: "acc_12",
+        name: "SG Student Loan",
+        category: "Personal Loan",
+        creditLimit: 100000,
+        currentBalance: 40500,
+        startingBalance: 100000,
+        interestRate: 5.8,
+        biweeklyPayment: 0,
+        notes: "Susan student loan, SG (Distress Relief)",
+        isArchived: false,
+      });
+    } else {
+      current[studentLoanIndex] = {
+        ...current[studentLoanIndex],
+        creditLimit: 100000,
+        startingBalance: 100000,
+        currentBalance: 40500,
+        biweeklyPayment: 0,
+        notes: "Susan student loan, SG (Distress Relief)"
+      };
+    }
+
+    return current;
   });
 
   const [debtHistory, setDebtHistory] = useState<DebtHistoryEntry[]>(() => {
@@ -1168,8 +1207,19 @@ export default function ScheduleWorkspace() {
           <div className="text-[9px] text-slate-400 font-semibold uppercase mt-0.5">Est. ${monthlyInterestEst.toFixed(2)}/mo</div>
         </td>
         <td className="p-3 text-right font-bold text-slate-700">
-          ${acc.biweeklyPayment.toLocaleString()}
-          <div className="text-[9px] text-slate-400 font-semibold uppercase mt-0.5">Biweekly</div>
+          {acc.name.toLowerCase().includes("student loan") ? (
+            <div>
+              <span className="text-[10px] font-black uppercase text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md font-mono inline-block">
+                Distress Relief
+              </span>
+              <div className="text-[9px] text-slate-400 font-semibold uppercase mt-0.5">No Payment</div>
+            </div>
+          ) : (
+            <>
+              ${acc.biweeklyPayment.toLocaleString()}
+              <div className="text-[9px] text-slate-400 font-semibold uppercase mt-0.5">Biweekly</div>
+            </>
+          )}
         </td>
         <td className="p-3 min-w-[140px]">
           {isCcOrLoc ? (
@@ -1239,6 +1289,16 @@ export default function ScheduleWorkspace() {
   const renderPaymentRow = (payment: PaymentItem) => {
     const isNA = !!payment.na;
     const paymentIndex = payments.indexOf(payment);
+    
+    const cleanPaymentName = (name: string) => {
+      // Strip parenthesized dates like (Jun 12), (Jun. 12), (June 12), etc.
+      let cleaned = name.replace(/\s*\((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d+(st|nd|rd|th)?\)/gi, "");
+      // Strip trailing dates like " - Jun 12", " Jun 12"
+      cleaned = cleaned.replace(/\s*-\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d+(st|nd|rd|th)?/gi, "");
+      cleaned = cleaned.replace(/\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d+(st|nd|rd|th)?/gi, "");
+      return cleaned;
+    };
+
     return (
       <div 
         key={payment.id} 
@@ -1260,16 +1320,13 @@ export default function ScheduleWorkspace() {
                   ? "text-slate-500 line-through text-xs" 
                   : "text-slate-850 text-xs"
             }`}>
-              {payment.name}
+              {cleanPaymentName(payment.name)}
             </span>
             {isNA && (
               <span className="text-[9px] font-black uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-md font-mono shrink-0">
                 N/A
               </span>
             )}
-            <span className="text-[9px] font-black uppercase text-cyan-700 bg-cyan-50 border border-cyan-100/60 px-1.5 py-0.5 rounded-md font-mono shrink-0">
-              {getPaymentDueDate(payment.id, paymentIndex)}
-            </span>
           </div>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 font-bold text-xs">$</span>

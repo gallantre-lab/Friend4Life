@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Check, Heart, Sun, Activity, Sparkles, TrendingUp, Hand, Compass, Flame, Loader2 } from "lucide-react";
+import { Check, Heart, Sun, Activity, Sparkles, TrendingUp, Hand, Compass, Flame, Loader2, X, ArrowLeft, ArrowRight } from "lucide-react";
 import ReadingAudioPlayer from "./ReadingAudioPlayer";
 
 interface MorningConnectionCardProps {
@@ -59,6 +59,22 @@ export default function MorningConnectionCard({
   const [isSaved, setIsSaved] = useState(false);
   const [history, setHistory] = useState<MorningRatingLog[]>([]);
 
+  // Mobile wizard state
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileWizard, setShowMobileWizard] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
+
   // Load trends
   useEffect(() => {
     const saved = localStorage.getItem("forlife_morning_checkins_v6");
@@ -99,8 +115,8 @@ export default function MorningConnectionCard({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     const newLog: MorningRatingLog = {
       id: "mc_" + Date.now(),
@@ -173,6 +189,10 @@ Could you provide a swift, encouraging morning word for my day?`;
     setHigherPowerHelp("");
     setPersonalizedAffirmation("");
 
+    // Reset wizard
+    setShowMobileWizard(false);
+    setCurrentStep(1);
+
     onSaveSuccess?.();
 
     setTimeout(() => {
@@ -182,6 +202,396 @@ Could you provide a swift, encouraging morning word for my day?`;
 
   // Filter local history for trend
   const userHistory = history.filter(h => h.user === currentUser).slice(0, 5).reverse();
+
+  if (isMobile) {
+    return (
+      <div id="morning-checkin-root" className="space-y-4 font-sans px-1">
+        
+        {/* Dynamic Prayer Header */}
+        <div className="p-3.5 bg-amber-50/60 border border-amber-100 rounded-2xl">
+          <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider font-mono block mb-1">
+            {currentUser === "Rhon" ? "Rhonda's AA Prayer" : "Susan's OA Prayer"}
+          </span>
+          <p className="italic text-xs font-semibold text-slate-850 m-0 leading-relaxed">
+            {currentUser === "Rhon" 
+              ? `"God, direct my thinking today; select especially that it be divorced from self-pity, dishonest or self-seeking motives. Help me to be of service today."` 
+              : `"God, keep me abstinent and peaceful today, nourishing my mind and temple with balanced nourishment, one meal and twenty-four hours at a time."`}
+          </p>
+        </div>
+
+        {/* Start Wizard Card */}
+        <div className="bg-gradient-to-br from-amber-50/40 to-orange-50/20 border border-amber-150 rounded-2xl p-5 text-center space-y-4 shadow-3xs">
+          <div className="flex justify-center">
+            <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+              <Sun className="w-6 h-6 animate-pulse" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900">Your Morning Connection is Ready</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+              Open the tap-friendly morning wizard to log your energy, connect with God, set intentions, and align your day comfortably.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentStep(1);
+              setShowMobileWizard(true);
+            }}
+            className="w-full bg-slate-950 hover:bg-slate-850 text-white font-extrabold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" /> Start Morning Connection
+          </button>
+        </div>
+
+        {isSaved && (
+          <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-150 rounded-2xl text-xs font-bold text-center flex items-center justify-center gap-1.5 animate-pulse">
+            <Heart className="w-4 h-4 text-emerald-600 fill-emerald-500 shrink-0" /> morning connection saved! overview sent to Bliss.
+          </div>
+        )}
+
+        {/* Mobile Full Screen Wizard Popup */}
+        {showMobileWizard && (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col h-full text-slate-900 animate-fadeIn overflow-hidden">
+            {/* Wizard Header */}
+            <div className="px-5 py-4 border-b border-stone-200 flex items-center justify-between shrink-0 bg-slate-900 text-white">
+              <div className="space-y-0.5">
+                <span className="text-[9px] uppercase font-black text-amber-400 tracking-wider font-mono">Step {currentStep} of 5</span>
+                <h2 className="text-xs font-black">
+                  {currentStep === 1 && "Rate Your Connection"}
+                  {currentStep === 2 && "Section 1: Connect with God"}
+                  {currentStep === 3 && "Section 2: Intention Setting"}
+                  {currentStep === 4 && "Section 3: Daily Affirmation"}
+                  {currentStep === 5 && "Review & Complete"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileWizard(false)}
+                className="p-1.5 hover:bg-white/10 rounded-lg text-white"
+                aria-label="Close Wizard"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-stone-100 h-1 shrink-0">
+              <div 
+                className="bg-amber-450 h-full transition-all duration-300" 
+                style={{ width: `${(currentStep / 5) * 100}%` }}
+              />
+            </div>
+
+            {/* Wizard Body (Scrollable content) */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 pb-12">
+              
+              {/* STEP 1: Energy & Anxiety Ratings */}
+              {currentStep === 1 && (
+                <div className="space-y-5 animate-fadeIn">
+                  <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                    Tap to rate your energy and anxiety levels this morning to establish a recovery baseline.
+                  </p>
+
+                  {/* Energy Level */}
+                  <div className="bg-amber-50/30 border border-amber-100 rounded-2xl p-4 space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-black text-amber-900 flex items-center gap-1">
+                        <Sun className="w-4 h-4" /> Energy Level
+                      </span>
+                      <span className="text-xs font-black text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-lg">
+                        {energy} / 10
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5 pt-1">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                        const isSelected = energy === num;
+                        return (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setEnergy(num)}
+                            className={`h-11 rounded-xl text-xs font-black transition-all flex items-center justify-center border cursor-pointer ${
+                              isSelected
+                                ? "bg-amber-450 text-slate-950 scale-105 border-amber-550/45 shadow-xs"
+                                : "bg-white text-stone-600 border-stone-200"
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Anxiety Level */}
+                  <div className="bg-indigo-50/20 border border-indigo-100 rounded-2xl p-4 space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-black text-indigo-900 flex items-center gap-1">
+                        <Activity className="w-4 h-4" /> Anxiety Level
+                      </span>
+                      <span className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-lg">
+                        {anxiety} / 10
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5 pt-1">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                        const isSelected = anxiety === num;
+                        return (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setAnxiety(num)}
+                            className={`h-11 rounded-xl text-xs font-black transition-all flex items-center justify-center border cursor-pointer ${
+                              isSelected
+                                ? "bg-indigo-600 text-white scale-105 border-indigo-700 shadow-xs"
+                                : "bg-white text-stone-600 border-stone-200"
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Connect with God */}
+              {currentStep === 2 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Connect inward and offer your day to God or your Higher Power.
+                  </p>
+
+                  <div className="space-y-4 bg-orange-50/20 border border-orange-100 rounded-2xl p-4">
+                    <div>
+                      <span className="block text-[10px] font-black text-orange-950 mb-1">Morning Prayer</span>
+                      <input
+                        type="text"
+                        value={morningPrayer}
+                        onChange={(e) => setMorningPrayer(e.target.value)}
+                        placeholder="Write your morning prayer or request..."
+                        className="w-full bg-white border border-stone-250 focus:border-orange-400 focus:outline-none rounded-xl px-3.5 py-3 text-xs font-semibold text-slate-850 shadow-3xs"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-black text-orange-950 mb-1">Daily Spiritual Focus</span>
+                      <input
+                        type="text"
+                        value={spiritualFocus}
+                        onChange={(e) => setSpiritualFocus(e.target.value)}
+                        placeholder="E.g., Surrender, Acceptance, Patience..."
+                        className="w-full bg-white border border-stone-250 focus:border-orange-400 focus:outline-none rounded-xl px-3.5 py-3 text-xs font-semibold text-slate-850 shadow-3xs"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-black text-orange-950 mb-1">Gratitude Prompt</span>
+                      <input
+                        type="text"
+                        value={gratitudePrompt}
+                        onChange={(e) => setGratitudePrompt(e.target.value)}
+                        placeholder="What are you grateful for right now?"
+                        className="w-full bg-white border border-stone-250 focus:border-orange-400 focus:outline-none rounded-xl px-3.5 py-3 text-xs font-semibold text-slate-850 shadow-3xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: Intention Setting */}
+              {currentStep === 3 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Set conscious boundaries and intentions for the next 24 hours.
+                  </p>
+
+                  <div className="space-y-4 bg-sky-50/20 border border-sky-100 rounded-2xl p-4">
+                    <div>
+                      <span className="block text-[10px] font-black text-sky-950 mb-1">What is most important today?</span>
+                      <input
+                        type="text"
+                        value={mostImportant}
+                        onChange={(e) => setMostImportant(e.target.value)}
+                        placeholder="Primary recovery or life priority..."
+                        className="w-full bg-white border border-stone-250 focus:border-sky-400 focus:outline-none rounded-xl px-3.5 py-3 text-xs font-semibold text-slate-850 shadow-3xs"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-black text-sky-950 mb-1">Character trait to practice?</span>
+                      <input
+                        type="text"
+                        value={characterTrait}
+                        onChange={(e) => setCharacterTrait(e.target.value)}
+                        placeholder="E.g., Humility, Honesty, Acceptance..."
+                        className="w-full bg-white border border-stone-250 focus:border-sky-400 focus:outline-none rounded-xl px-3.5 py-3 text-xs font-semibold text-slate-850 shadow-3xs"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-black text-sky-950 mb-1">Asking Higher Power to help with?</span>
+                      <input
+                        type="text"
+                        value={higherPowerHelp}
+                        onChange={(e) => setHigherPowerHelp(e.target.value)}
+                        placeholder="E.g., Dealing with cravings, my patience..."
+                        className="w-full bg-white border border-stone-250 focus:border-sky-400 focus:outline-none rounded-xl px-3.5 py-3 text-xs font-semibold text-slate-850 shadow-3xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: Daily Affirmation */}
+              {currentStep === 4 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Generate or write a strong, personalized affirmation to recite today.
+                  </p>
+
+                  <div className="bg-emerald-50/20 border border-emerald-100 rounded-2xl p-4 space-y-4">
+                    <div className="flex items-center justify-between border-b border-stone-200/50 pb-2">
+                      <span className="text-xs uppercase font-extrabold text-emerald-950 tracking-wider font-mono">Daily Affirmation</span>
+                      <button
+                        type="button"
+                        onClick={handleGenerateAffirmation}
+                        disabled={isGeneratingAffirmation}
+                        className="bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 text-[10px] font-black px-3.5 py-1.5 rounded-xl transition flex items-center gap-1"
+                      >
+                        {isGeneratingAffirmation ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" /> Aligning...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3 h-3 text-emerald-600" /> Generate
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <textarea
+                      rows={3}
+                      value={personalizedAffirmation}
+                      onChange={(e) => setPersonalizedAffirmation(e.target.value)}
+                      placeholder="Your custom daily affirmation will generate here, or you can write your own!"
+                      className="w-full bg-white border border-stone-250 focus:border-emerald-400 focus:outline-none rounded-xl p-3 text-xs font-black text-slate-800 leading-relaxed shadow-3xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 5: Review & Complete */}
+              {currentStep === 5 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Review your morning intentions before finishing.
+                  </p>
+
+                  <div className="bg-slate-50 border border-stone-200 rounded-2xl p-4 space-y-3.5">
+                    <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono font-bold">
+                      <div className="bg-amber-50 p-2 rounded-xl border border-amber-150">
+                        <span className="block text-[9px] text-amber-800 uppercase">Energy</span>
+                        <span className="text-sm font-black text-slate-850">{energy}/10</span>
+                      </div>
+                      <div className="bg-indigo-50 p-2 rounded-xl border border-indigo-150">
+                        <span className="block text-[9px] text-indigo-800 uppercase">Anxiety</span>
+                        <span className="text-sm font-black text-slate-850">{anxiety}/10</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5 text-xs">
+                      <div>
+                        <strong className="text-[10px] uppercase text-stone-500 block font-mono">Prayer:</strong>
+                        <p className="text-slate-800 font-semibold italic mt-0.5">"{morningPrayer || "None"}"</p>
+                      </div>
+                      <div>
+                        <strong className="text-[10px] uppercase text-stone-500 block font-mono">Spiritual Focus:</strong>
+                        <p className="text-slate-800 font-semibold mt-0.5">{spiritualFocus || "None"}</p>
+                      </div>
+                      <div>
+                        <strong className="text-[10px] uppercase text-stone-500 block font-mono">Gratitude:</strong>
+                        <p className="text-slate-800 font-semibold mt-0.5">"{gratitudePrompt || "None"}"</p>
+                      </div>
+                      <div>
+                        <strong className="text-[10px] uppercase text-stone-500 block font-mono">Primary Focus Today:</strong>
+                        <p className="text-slate-800 font-semibold mt-0.5">{mostImportant || "None"}</p>
+                      </div>
+                      <div>
+                        <strong className="text-[10px] uppercase text-stone-500 block font-mono">Affirmation:</strong>
+                        <p className="text-slate-800 font-bold mt-0.5 italic">"{personalizedAffirmation || "One day at a time!"}"</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Wizard Navigation Footer */}
+            <div className="p-4 border-t border-stone-200 flex items-center justify-between shrink-0 bg-stone-50">
+              <button
+                type="button"
+                disabled={currentStep === 1}
+                onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
+                className="px-4 py-3 border border-stone-300 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-1 bg-white hover:bg-stone-50 disabled:opacity-40"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back
+              </button>
+
+              {currentStep < 5 ? (
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(prev => Math.min(5, prev + 1))}
+                  className="px-5 py-3 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-1 hover:bg-slate-850"
+                >
+                  Next <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSubmit()}
+                  className="px-5 py-3 bg-slate-900 hover:bg-slate-850 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow"
+                >
+                  <Check className="w-4 h-4 text-emerald-300" /> Finish & Save
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Historical Ratings trend */}
+        {userHistory.length > 0 && (
+          <div className="p-4 bg-slate-50 border border-stone-200 rounded-2xl space-y-2.5">
+            <div className="flex items-center gap-1.5 text-slate-700 pb-0.5 border-b border-stone-200/50">
+              <TrendingUp className="w-4 h-4 text-slate-600" />
+              <strong className="text-xs uppercase font-extrabold tracking-wider font-mono text-slate-800">Historical Energy/Anxiety Trend</strong>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider pb-1 border-b border-stone-200 font-mono">
+                <span>Date</span>
+                <span className="text-center">Energy</span>
+                <span className="text-center">Anxiety</span>
+              </div>
+
+              {userHistory.map((item) => (
+                <div key={item.id} className="grid grid-cols-3 text-xs text-slate-800 font-extrabold items-center py-1 border-b border-stone-150/40 font-mono">
+                  <span className="text-slate-500 font-sans font-semibold">{item.date}</span>
+                  <span className="text-center font-bold text-amber-600">{item.ratings.energy}/10</span>
+                  <span className="text-center font-bold text-indigo-650">{item.ratings.anxiety}/10</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  }
 
   return (
     <div id="morning-checkin-root" className="space-y-4.5 font-sans">

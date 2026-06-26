@@ -142,17 +142,30 @@ export default function App() {
   const [isSettingPin, setIsSettingPin] = useState(false);
   const [pinError, setPinError] = useState("");
 
+  const getExistingPin = (user: "Rhon" | "Suz") => {
+    if (user === "Rhon") {
+      return rhonProfile?.pin || localStorage.getItem("forlife_rhon_pin_v3") || localStorage.getItem("rhon_dynamic_pin") || "";
+    } else {
+      return suzProfile?.pin || localStorage.getItem("forlife_suz_pin_v3") || localStorage.getItem("suz_dynamic_pin") || "";
+    }
+  };
+
   const requestWorkspaceChange = (workspace: string) => {
     const isProtected = ["profiles", "notes"].includes(workspace);
+    const wasProtected = ["profiles", "notes"].includes(activeWorkspace);
     
+    if (wasProtected && !isProtected) {
+      setSessionUnlocked(false);
+    }
+
     if (workspace === "home" || !isProtected) {
       setActiveWorkspace(workspace);
       return;
     }
     
     // Attempting to enter private workspace
-    const currentProfileData = currentUser === "Rhon" ? rhonProfile : suzProfile;
-    if (!currentProfileData?.pin) {
+    const existingPin = getExistingPin(currentUser);
+    if (!existingPin) {
       setIsSettingPin(true);
       setPinEntry("");
       setPinError("");
@@ -177,11 +190,16 @@ export default function App() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const currentProfileData = currentUser === "Rhon" ? rhonProfile : suzProfile;
+    const existingPin = getExistingPin(currentUser);
 
     if (isSettingPin) {
       if (pinEntry.length >= 4) {
         handleUpdateProfile(currentUser.toLowerCase() as "rhon" | "suz", { pin: pinEntry });
+        const pinKey = currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+        const altPinKey = currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+        localStorage.setItem(pinKey, pinEntry);
+        localStorage.setItem(altPinKey, pinEntry);
+        
         setSessionUnlocked(true);
         setActiveWorkspace(profileUnlockTarget ? (profileUnlockTarget as unknown as string) : "home");
         setProfileUnlockTarget(null);
@@ -189,7 +207,7 @@ export default function App() {
         setPinError("PIN must be at least 4 digits");
       }
     } else {
-      if (pinEntry === currentProfileData?.pin) {
+      if (pinEntry === existingPin) {
         setSessionUnlocked(true);
         setActiveWorkspace(profileUnlockTarget ? (profileUnlockTarget as unknown as string) : "home");
         setProfileUnlockTarget(null);
@@ -762,7 +780,7 @@ export default function App() {
               <input type="file" accept="image/*" className="hidden" aria-label="Upload secondary logo" onChange={handleSecondaryLogoUpload} />
             </label>
             <span 
-              onClick={() => setActiveWorkspace("home")}
+              onClick={() => requestWorkspaceChange("home")}
               className="text-xs font-black tracking-wider uppercase text-slate-800 font-mono cursor-pointer hover:opacity-80 transition block w-full text-center sm:text-left py-1"
             >
               Friend4Life
@@ -949,7 +967,7 @@ export default function App() {
               </form>
 
               <button
-                onClick={() => setActiveWorkspace("home")}
+                onClick={() => requestWorkspaceChange("home")}
                 className="mt-6 text-sm font-bold text-stone-400 hover:text-stone-600 cursor-pointer transition-colors"
               >
                 Go back
@@ -965,7 +983,7 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <button 
                   type="button"
-                  onClick={() => setActiveWorkspace("home")}
+                  onClick={() => requestWorkspaceChange("home")}
                   className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl cursor-pointer transition flex items-center justify-center border border-white/15 text-xs font-black"
                 >
                   ◀ Back to Wellness Hub
@@ -1035,7 +1053,7 @@ export default function App() {
             </div>
 
             {/* Sub-panels display */}
-            <div key={syncVersion} className="bg-white border border-stone-200 p-5 rounded-3xl shadow-3xs min-h-[400px]">
+            <div key={`${currentUser}_${activeWorkspace}_${syncVersion}`} className="bg-white border border-stone-200 p-5 rounded-3xl shadow-3xs min-h-[400px]">
               {activeWorkspace === "chat" && (
                 <div className="space-y-4">
                   <div className="flex flex-col items-center justify-center py-2.5 bg-slate-50 border border-stone-150 rounded-2xl">
@@ -1232,7 +1250,7 @@ export default function App() {
                             setSelectedDate(nextDateStr);
 
                             // 3. System closes daily workflow and returns to home Wellness Hub bento grid
-                            setActiveWorkspace("home");
+                            requestWorkspaceChange("home");
 
                             alert("All steps completed for today! System has closed the daily workflow and prepped for tomorrow.");
                           }}
@@ -1370,7 +1388,7 @@ export default function App() {
       {/* If Bliss is "open", we just render it in an overlay or directly in the workspace container if that's easier. Currently "chat" is an activeWorkspace. Let's make it an overlay. */}
       {activeWorkspace === "chat" && (
         <VoiceCompanionView
-          onClose={() => setActiveWorkspace("home")}
+          onClose={() => requestWorkspaceChange("home")}
           onSendSpeech={(txt) => handleSendChat(undefined, txt)}
           lastReplyText={chatHistory.filter(c => c.sender === "bliss").pop()?.text || ""}
           isBlissSpeaking={isSpeakingOut}
