@@ -20,11 +20,12 @@ import JournalCard from "./components/JournalCard";
 import PinGate from "./components/PinGate";
 import CollapsibleCard from "./components/CollapsibleCard";
 
+import { doc, getDoc } from "firebase/firestore";
 import NotesWorkspace from "./components/NotesWorkspace";
 import ProfilesView from "./components/ProfilesView";
 import DailyFoodLogCard from "./components/DailyFoodLogCard";
 import ScheduleWorkspace from "./components/ScheduleWorkspace";
-import { uploadKeyToCloud, setupCloudSyncListener } from "./firebase";
+import { uploadKeyToCloud, setupCloudSyncListener, db } from "./firebase";
 
 // Global interception of localStorage.setItem to sync automatically to the cloud (Firestore)
 const originalSetItem = window.localStorage.setItem;
@@ -141,6 +142,7 @@ export default function App() {
   const [pinEntry, setPinEntry] = useState("");
   const [isSettingPin, setIsSettingPin] = useState(false);
   const [pinError, setPinError] = useState("");
+  const [isCheckingPin, setIsCheckingPin] = useState(false);
 
   const getExistingPin = (user: "Rhon" | "Suz") => {
     if (user === "Rhon") {
@@ -150,7 +152,7 @@ export default function App() {
     }
   };
 
-  const requestWorkspaceChange = (workspace: string) => {
+  const requestWorkspaceChange = async (workspace: string) => {
     const isProtected = ["profiles", "notes"].includes(workspace);
     const wasProtected = ["profiles", "notes"].includes(activeWorkspace);
     
@@ -163,23 +165,64 @@ export default function App() {
       return;
     }
     
-    // Attempting to enter private workspace
-    const existingPin = getExistingPin(currentUser);
-    if (!existingPin) {
-      setIsSettingPin(true);
-      setPinEntry("");
-      setPinError("");
-      setProfileUnlockTarget(workspace as any);
-      setActiveWorkspace("lockscreen");
-    } else if (!sessionUnlocked) {
-      setIsSettingPin(false);
-      setPinEntry("");
-      setPinError("");
-      setActiveWorkspace("lockscreen");
-      // Store the intent
-      setProfileUnlockTarget(workspace as any);
-    } else {
-      setActiveWorkspace(workspace);
+    // Attempting to enter private workspace - set loading state first
+    setIsCheckingPin(true);
+    setActiveWorkspace("lockscreen");
+    setProfileUnlockTarget(workspace as any);
+    setPinError("");
+    setPinEntry("");
+
+    try {
+      const pinKey = currentUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+      
+      // Fetch directly from Firestore to check if pin is present in the cloud database
+      const docRef = doc(db, "local_storage", pinKey);
+      const docSnap = await getDoc(docRef);
+      
+      let fetchedPin = "";
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.value) {
+          try {
+            const parsedProfile = JSON.parse(data.value);
+            if (parsedProfile && parsedProfile.pin !== undefined && parsedProfile.pin !== null) {
+              fetchedPin = parsedProfile.pin || "";
+              // Update local state and localStorage with the fresh database values
+              if (currentUser === "Rhon") {
+                setRhonProfile(parsedProfile);
+              } else {
+                setSuzProfile(parsedProfile);
+              }
+              localStorage.setItem(pinKey, data.value);
+              localStorage.setItem(currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3", fetchedPin);
+              localStorage.setItem(currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin", fetchedPin);
+            }
+          } catch (e) {
+            console.error("Error parsing profile from Firestore:", e);
+          }
+        }
+      }
+
+      // Fallback to local storage if Firestore has no value or failed
+      if (!fetchedPin) {
+        fetchedPin = getExistingPin(currentUser);
+      }
+
+      if (fetchedPin) {
+        setIsSettingPin(false);
+      } else {
+        setIsSettingPin(true);
+      }
+    } catch (err) {
+      console.error("Error fetching PIN asynchronously:", err);
+      const localPin = getExistingPin(currentUser);
+      if (localPin) {
+        setIsSettingPin(false);
+      } else {
+        setIsSettingPin(true);
+      }
+    } finally {
+      setIsCheckingPin(false);
     }
   };
 
@@ -932,46 +975,55 @@ export default function App() {
         ) : activeWorkspace === "lockscreen" ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-6">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-200 min-w-[320px]">
-              <Lock className="w-12 h-12 text-slate-800 mx-auto mb-4" />
-              <h2 className="text-2xl font-black text-slate-900 mb-2">
-                {isSettingPin ? "Create Your PIN" : "Enter Your PIN"}
-              </h2>
-              <p className="text-stone-500 text-sm mb-6 font-semibold">
-                {isSettingPin 
-                  ? "Secure your private profile and journals." 
-                  : `Please enter the PIN for ${currentUser}'s profile.`}
-              </p>
+              {isCheckingPin ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-4">
+                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+                  <p className="text-sm text-stone-500 font-semibold">Verifying dynamic PIN state...</p>
+                </div>
+              ) : (
+                <>
+                  <Lock className="w-12 h-12 text-slate-800 mx-auto mb-4" />
+                  <h2 className="text-2xl font-black text-slate-900 mb-2">
+                    {isSettingPin ? "Create Your PIN" : "Enter Your PIN"}
+                  </h2>
+                  <p className="text-stone-500 text-sm mb-6 font-semibold">
+                    {isSettingPin 
+                      ? "Secure your private profile and journals." 
+                      : `Please enter the PIN for ${currentUser}'s profile.`}
+                  </p>
 
-              <form onSubmit={handlePinSubmit} className="space-y-4">
-                <input 
-                  type="password" 
-                  autoFocus
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={pinEntry}
-                  onChange={(e) => setPinEntry(e.target.value)}
-                  className="w-full text-center tracking-[1em] text-2xl font-extrabold p-3 rounded-2xl bg-stone-100 border-2 border-stone-300 focus:border-indigo-500 focus:outline-none"
-                  placeholder="••••"
-                />
-                
-                {pinError && (
-                  <p className="text-rose-500 text-xs font-bold">{pinError}</p>
-                )}
+                  <form onSubmit={handlePinSubmit} className="space-y-4">
+                    <input 
+                      type="password" 
+                      autoFocus
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={pinEntry}
+                      onChange={(e) => setPinEntry(e.target.value)}
+                      className="w-full text-center tracking-[1em] text-2xl font-extrabold p-3 rounded-2xl bg-stone-100 border-2 border-stone-300 focus:border-indigo-500 focus:outline-none"
+                      placeholder="••••"
+                    />
+                    
+                    {pinError && (
+                      <p className="text-rose-500 text-xs font-bold">{pinError}</p>
+                    )}
 
-                <button 
-                  type="submit" 
-                  className="w-full py-3 bg-slate-950 text-white font-black rounded-xl hover:bg-slate-800 transition-colors"
-                >
-                  {isSettingPin ? "Save & Lock Profile" : "Unlock"}
-                </button>
-              </form>
+                    <button 
+                      type="submit" 
+                      className="w-full py-3 bg-slate-950 text-white font-black rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      {isSettingPin ? "Save & Lock Profile" : "Unlock"}
+                    </button>
+                  </form>
 
-              <button
-                onClick={() => requestWorkspaceChange("home")}
-                className="mt-6 text-sm font-bold text-stone-400 hover:text-stone-600 cursor-pointer transition-colors"
-              >
-                Go back
-              </button>
+                  <button
+                    onClick={() => requestWorkspaceChange("home")}
+                    className="mt-6 text-sm font-bold text-stone-400 hover:text-stone-600 cursor-pointer transition-colors"
+                  >
+                    Go back
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : (
