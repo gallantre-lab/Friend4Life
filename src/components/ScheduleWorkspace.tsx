@@ -39,30 +39,53 @@ interface PaymentItem {
   amount: number;
   paid: boolean;
   na?: boolean;
+  period?: "15th" | "30th";
 }
 
+const getPaymentDefaultPeriod = (p: { id: string; name: string }): "15th" | "30th" => {
+  const nameLower = p.name.toLowerCase();
+  if (
+    nameLower.includes("mortgage") ||
+    nameLower.includes("electric") ||
+    nameLower.includes("phone") ||
+    nameLower.includes("shed") ||
+    nameLower.includes("property") ||
+    nameLower.includes("tfsa") ||
+    nameLower.includes("car") ||
+    nameLower.includes("loc sg") ||
+    nameLower.includes("loc rg") ||
+    nameLower.includes("rg loc") ||
+    nameLower.includes("sg loc") ||
+    nameLower.includes("sg line") ||
+    nameLower.includes("rg line")
+  ) {
+    return "15th";
+  }
+  return "30th";
+};
+
 const defaultPayments: PaymentItem[] = [
-  { id: "1", name: "Mortgage", amount: 850, paid: false },
-  { id: "2", name: "Electric", amount: 150, paid: false },
-  { id: "3", name: "House Insurance", amount: 100, paid: false },
-  { id: "21", name: "Car Insurance", amount: 100, paid: false },
-  { id: "4", name: "Phones", amount: 155, paid: false },
-  { id: "5", name: "LOC SG", amount: 250, paid: false },
-  { id: "6", name: "Shed", amount: 150, paid: false },
-  { id: "7", name: "Car SG", amount: 252, paid: false },
-  { id: "8", name: "Car RG", amount: 215, paid: false },
-  { id: "9", name: "Property", amount: 100, paid: false },
-  { id: "10", name: "Emerg", amount: 50, paid: false },
-  { id: "11", name: "Church", amount: 40, paid: false },
-  { id: "12", name: "TFSA", amount: 100, paid: false },
-  { id: "13", name: "SG CIBC", amount: 200, paid: false },
-  { id: "14", name: "SG Triangle", amount: 50, paid: false },
-  { id: "15", name: "CIBC RG", amount: 250, paid: false },
-  { id: "16", name: "LOC RG", amount: 250, paid: false },
-  { id: "17", name: "PC RG", amount: 250, paid: false },
-  { id: "18", name: "Play", amount: 50, paid: false },
-  { id: "19", name: "DR", amount: 50, paid: false },
-  { id: "20", name: "Internet", amount: 80, paid: false }
+  { id: "1", name: "Mortgage", amount: 850, paid: false, period: "15th" },
+  { id: "2", name: "Electric", amount: 150, paid: false, period: "15th" },
+  { id: "3", name: "House Insurance", amount: 100, paid: false, period: "30th" },
+  { id: "21", name: "Car Insurance", amount: 100, paid: false, period: "30th" },
+  { id: "4", name: "Phones", amount: 155, paid: false, period: "15th" },
+  { id: "5", name: "LOC SG", amount: 250, paid: false, period: "15th" },
+  { id: "6", name: "Shed", amount: 150, paid: false, period: "15th" },
+  { id: "7", name: "Car SG", amount: 252, paid: false, period: "15th" },
+  { id: "8", name: "Car RG", amount: 215, paid: false, period: "15th" },
+  { id: "9", name: "Property", amount: 100, paid: false, period: "15th" },
+  { id: "10", name: "Emerg", amount: 50, paid: false, period: "30th" },
+  { id: "11", name: "Church", amount: 40, paid: false, period: "30th" },
+  { id: "12", name: "TFSA", amount: 100, paid: false, period: "15th" },
+  { id: "13", name: "SG CIBC", amount: 200, paid: false, period: "30th" },
+  { id: "14", name: "SG Triangle", amount: 50, paid: false, period: "30th" },
+  { id: "15", name: "CIBC RG", amount: 250, paid: false, period: "30th" },
+  { id: "16", name: "LOC RG", amount: 250, paid: false, period: "15th" },
+  { id: "17", name: "PC RG", amount: 250, paid: false, period: "30th" },
+  { id: "18", name: "Play", amount: 50, paid: false, period: "30th" },
+  { id: "19", name: "DR", amount: 50, paid: false, period: "30th" },
+  { id: "20", name: "Internet", amount: 80, paid: false, period: "30th" }
 ];
 
 interface DebtAccount {
@@ -114,7 +137,8 @@ function getAccountOwner(name: string): "RG" | "SG" | "OTHER" {
   const normalized = name.toUpperCase();
   if (
     normalized.startsWith("RG ") || 
-    normalized.includes(" RG") || 
+    normalized.endsWith(" RG") || 
+    normalized.includes(" RG ") ||
     normalized.includes("RG-") || 
     normalized.includes("RHONDA") || 
     normalized === "RG"
@@ -123,7 +147,8 @@ function getAccountOwner(name: string): "RG" | "SG" | "OTHER" {
   }
   if (
     normalized.startsWith("SG ") || 
-    normalized.includes(" SG") || 
+    normalized.endsWith(" SG") || 
+    normalized.includes(" SG ") ||
     normalized.includes("SG-") || 
     normalized.includes("SUSAN") || 
     normalized === "SG"
@@ -133,19 +158,37 @@ function getAccountOwner(name: string): "RG" | "SG" | "OTHER" {
   return "OTHER";
 }
 
+const migrateDebtAccountNames = (accounts: DebtAccount[]): DebtAccount[] => {
+  return accounts.map(a => {
+    let name = a.name;
+    if (name === "RG Line of Credit") name = "RG LOC";
+    else if (name === "SG Line of Credit") name = "SG LOC";
+    else if (name === "SG CIBC") name = "CIBC SG";
+    else if (name === "CIBC RG") name = "CIBC RG";
+    else if (name === "RG PC Mastercard") name = "PC RG";
+    else if (name === "SG CT Mastercard") name = "CT SG";
+    else if (name === "RG Scotia Visa") name = "Scotia RG";
+    else if (name === "SG Scotia Visa") name = "Scotia SG";
+    else if (name === "RG Car") name = "Car RG";
+    else if (name === "SG Car") name = "Car SG";
+    else if (name === "SG Student Loan") name = "Student SG";
+    return { ...a, name };
+  });
+};
+
 const defaultDebtAccounts: DebtAccount[] = [
   { id: "acc_1", name: "RG Visa Select", category: "Credit Card", creditLimit: 10000, currentBalance: 4772, startingBalance: 5500, interestRate: 13.99, biweeklyPayment: 150, notes: "Rhonda primary rewards card", isArchived: false },
-  { id: "acc_2", name: "SG CIBC", category: "Credit Card", creditLimit: 15000, currentBalance: 5446, startingBalance: 6200, interestRate: 21.99, biweeklyPayment: 200, notes: "Susan main card", isArchived: false },
-  { id: "acc_3", name: "SG Line of Credit", category: "Line of Credit", creditLimit: 14000, currentBalance: 12618, startingBalance: 13500, interestRate: 11.99, biweeklyPayment: 250, notes: "Susan personal LOC", isArchived: false },
-  { id: "acc_4", name: "RG Line of Credit", category: "Line of Credit", creditLimit: 10000, currentBalance: 7655.39, startingBalance: 8200, interestRate: 8.99, biweeklyPayment: 250, notes: "Rhonda personal LOC", isArchived: false },
-  { id: "acc_5", name: "RG PC Mastercard", category: "Credit Card", creditLimit: 14000, currentBalance: 1182, startingBalance: 2000, interestRate: 21.99, biweeklyPayment: 100, notes: "President's Choice points card", isArchived: false },
-  { id: "acc_6", name: "SG CT Mastercard", category: "Credit Card", creditLimit: 19500, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Canadian Tire Options", isArchived: false },
-  { id: "acc_7", name: "RG Scotia Visa", category: "Credit Card", creditLimit: 12000, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Scotiabank Passport", isArchived: false },
-  { id: "acc_8", name: "SG Scotia Visa", category: "Credit Card", creditLimit: 1000, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Susan small credit line", isArchived: false },
-  { id: "acc_9", name: "RG Car", category: "Auto Loan", creditLimit: 32000, currentBalance: 32000, startingBalance: 33000, interestRate: 5.00, biweeklyPayment: 214, notes: "Rhonda SUV auto loan", isArchived: false, lastAutoProcessed: "2026-06-15" },
-  { id: "acc_10", name: "SG Car", category: "Auto Loan", creditLimit: 38000, currentBalance: 38000, startingBalance: 39000, interestRate: 5.00, biweeklyPayment: 245, notes: "Susan crossover auto loan", isArchived: false, lastAutoProcessed: "2026-06-15" },
+  { id: "acc_2", name: "CIBC SG", category: "Credit Card", creditLimit: 15000, currentBalance: 5446, startingBalance: 6200, interestRate: 21.99, biweeklyPayment: 200, notes: "Susan main card", isArchived: false },
+  { id: "acc_3", name: "SG LOC", category: "Line of Credit", creditLimit: 14000, currentBalance: 12618, startingBalance: 13500, interestRate: 11.99, biweeklyPayment: 250, notes: "Susan personal LOC", isArchived: false },
+  { id: "acc_4", name: "RG LOC", category: "Line of Credit", creditLimit: 10000, currentBalance: 7655.39, startingBalance: 8200, interestRate: 8.99, biweeklyPayment: 250, notes: "Rhonda personal LOC", isArchived: false },
+  { id: "acc_5", name: "PC RG", category: "Credit Card", creditLimit: 14000, currentBalance: 1182, startingBalance: 2000, interestRate: 21.99, biweeklyPayment: 100, notes: "President's Choice points card", isArchived: false },
+  { id: "acc_6", name: "CT SG", category: "Credit Card", creditLimit: 19500, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Canadian Tire Options", isArchived: false },
+  { id: "acc_7", name: "Scotia RG", category: "Credit Card", creditLimit: 12000, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Scotiabank Passport", isArchived: false },
+  { id: "acc_8", name: "Scotia SG", category: "Credit Card", creditLimit: 1000, currentBalance: 0, startingBalance: 0, interestRate: 21.99, biweeklyPayment: 0, notes: "Susan small credit line", isArchived: false },
+  { id: "acc_9", name: "Car RG", category: "Auto Loan", creditLimit: 32000, currentBalance: 32000, startingBalance: 33000, interestRate: 5.00, biweeklyPayment: 214, notes: "Rhonda SUV auto loan", isArchived: false, lastAutoProcessed: "2026-06-15" },
+  { id: "acc_10", name: "Car SG", category: "Auto Loan", creditLimit: 38000, currentBalance: 38000, startingBalance: 39000, interestRate: 5.00, biweeklyPayment: 245, notes: "Susan crossover auto loan", isArchived: false, lastAutoProcessed: "2026-06-15" },
   { id: "acc_11", name: "Mortgage", category: "Mortgage", creditLimit: 318081.21, currentBalance: 318081.21, startingBalance: 319081.21, interestRate: 4.74, biweeklyPayment: 771.86, notes: "Shared home mortgage loan", isArchived: false, lastAutoProcessed: "2026-06-01" },
-  { id: "acc_12", name: "SG Student Loan", category: "Personal Loan", creditLimit: 100000, currentBalance: 40500, startingBalance: 100000, interestRate: 5.80, biweeklyPayment: 0, notes: "Susan student loan, SG (Distress Relief)", isArchived: false }
+  { id: "acc_12", name: "Student SG", category: "Personal Loan", creditLimit: 100000, currentBalance: 40500, startingBalance: 100000, interestRate: 5.80, biweeklyPayment: 0, notes: "Susan student loan, SG (Distress Relief)", isArchived: false }
 ];
 
 const defaultSavingsAccounts: SavingsAccount[] = [
@@ -164,16 +207,38 @@ const defaultSavingsHistory: SavingsHistoryEntry[] = [
 
 const defaultDebtHistory: DebtHistoryEntry[] = [
   { id: "dh_1", date: "2026-04-15", accountId: "acc_1", accountName: "RG Visa Select", previousBalance: 5500, newBalance: 4772, amountReduced: 728 },
-  { id: "dh_2", date: "2026-04-30", accountId: "acc_2", accountName: "SG CIBC", previousBalance: 6200, newBalance: 5446, amountReduced: 754 },
-  { id: "dh_3", date: "2026-05-15", accountId: "acc_3", accountName: "SG Line of Credit", previousBalance: 13500, newBalance: 12618, amountReduced: 882 },
-  { id: "dh_4", date: "2026-05-30", accountId: "acc_4", accountName: "RG Line of Credit", previousBalance: 8200, newBalance: 7655.39, amountReduced: 544.61 },
-  { id: "dh_5", date: "2026-06-10", accountId: "acc_5", accountName: "RG PC Mastercard", previousBalance: 2000, newBalance: 1182, amountReduced: 818 },
-  { id: "dh_6", date: "2026-06-15", accountId: "acc_9", accountName: "RG Car", previousBalance: 33000, newBalance: 32000, amountReduced: 1000 },
-  { id: "dh_7", date: "2026-06-15", accountId: "acc_10", accountName: "SG Car", previousBalance: 39000, newBalance: 38000, amountReduced: 1000 },
+  { id: "dh_2", date: "2026-04-30", accountId: "acc_2", accountName: "CIBC SG", previousBalance: 6200, newBalance: 5446, amountReduced: 754 },
+  { id: "dh_3", date: "2026-05-15", accountId: "acc_3", accountName: "SG LOC", previousBalance: 13500, newBalance: 12618, amountReduced: 882 },
+  { id: "dh_4", date: "2026-05-30", accountId: "acc_4", accountName: "RG LOC", previousBalance: 8200, newBalance: 7655.39, amountReduced: 544.61 },
+  { id: "dh_5", date: "2026-06-10", accountId: "acc_5", accountName: "PC RG", previousBalance: 2000, newBalance: 1182, amountReduced: 818 },
+  { id: "dh_6", date: "2026-06-15", accountId: "acc_9", accountName: "Car RG", previousBalance: 33000, newBalance: 32000, amountReduced: 1000 },
+  { id: "dh_7", date: "2026-06-15", accountId: "acc_10", accountName: "Car SG", previousBalance: 39000, newBalance: 38000, amountReduced: 1000 },
   { id: "dh_8", date: "2026-06-20", accountId: "acc_11", accountName: "Mortgage", previousBalance: 319081.21, newBalance: 318081.21, amountReduced: 1000 }
 ];
 
 export default function ScheduleWorkspace() {
+  const [activeYear, setActiveYear] = useState<number>(() => {
+    const saved = localStorage.getItem("forlife_active_year");
+    return saved ? parseInt(saved, 10) : 2026;
+  });
+
+  const [activeMonthIdx, setActiveMonthIdx] = useState<number>(() => {
+    const saved = localStorage.getItem("forlife_active_month_idx");
+    return saved ? parseInt(saved, 10) : 5; // Default to June (index 5)
+  });
+
+  const [activePeriod, setActivePeriod] = useState<"15th" | "30th">(() => {
+    const saved = localStorage.getItem("forlife_active_period");
+    if (saved === "15th" || saved === "30th") return saved;
+    return "15th";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("forlife_active_year", activeYear.toString());
+    localStorage.setItem("forlife_active_month_idx", activeMonthIdx.toString());
+    localStorage.setItem("forlife_active_period", activePeriod);
+  }, [activeYear, activeMonthIdx, activePeriod]);
+
   const [payments, setPayments] = useState<PaymentItem[]>(() => {
     const saved = localStorage.getItem("forlife_payments_v1");
     let current: PaymentItem[];
@@ -181,11 +246,22 @@ export default function ScheduleWorkspace() {
       try {
         current = JSON.parse(saved);
       } catch (e) {
-        current = [...defaultPayments];
+        current = defaultPayments.map(p => ({ ...p, period: getPaymentDefaultPeriod(p) }));
       }
     } else {
-      current = [...defaultPayments];
+      current = defaultPayments.map(p => ({ ...p, period: getPaymentDefaultPeriod(p) }));
     }
+
+    // Assign periods if missing (migration)
+    current = current.map(p => {
+      if (!p.period) {
+        return {
+          ...p,
+          period: getPaymentDefaultPeriod(p)
+        };
+      }
+      return p;
+    });
 
     // Migration for "Insurance" split
     const hasOldInsurance = current.some((p) => p.name.toLowerCase() === "insurance");
@@ -196,13 +272,13 @@ export default function ScheduleWorkspace() {
     // Ensure House Insurance exists
     const hasHouseInsurance = current.some((p) => p.name.toLowerCase() === "house insurance");
     if (!hasHouseInsurance) {
-      current.push({ id: "3", name: "House Insurance", amount: 100, paid: false });
+      current.push({ id: "3", name: "House Insurance", amount: 100, paid: false, period: "30th" });
     }
 
     // Ensure Car Insurance exists
     const hasCarInsurance = current.some((p) => p.name.toLowerCase() === "car insurance");
     if (!hasCarInsurance) {
-      current.push({ id: "21", name: "Car Insurance", amount: 100, paid: false });
+      current.push({ id: "21", name: "Car Insurance", amount: 100, paid: false, period: "30th" });
     }
 
     // Ensure Internet exists
@@ -212,7 +288,7 @@ export default function ScheduleWorkspace() {
         const num = parseInt(p.id, 10);
         return isNaN(num) ? max : Math.max(max, num);
       }, 0);
-      current.push({ id: String(maxId + 1), name: "Internet", amount: 80, paid: false });
+      current.push({ id: String(maxId + 1), name: "Internet", amount: 80, paid: false, period: "30th" });
     }
 
     return current;
@@ -235,14 +311,17 @@ export default function ScheduleWorkspace() {
       current = [...defaultDebtAccounts];
     }
 
+    // Run the names migration to ensure initials first
+    current = migrateDebtAccountNames(current);
+
     // Self-healing: ensure Susan's student loan exists and has correct Distress Relief properties
     const studentLoanIndex = current.findIndex(
-      (a) => a.name.toLowerCase().includes("student loan") || a.id === "acc_12"
+      (a) => a.name.toLowerCase().includes("student loan") || a.name.toLowerCase().includes("student sg") || a.id === "acc_12"
     );
     if (studentLoanIndex === -1) {
       current.push({
         id: "acc_12",
-        name: "SG Student Loan",
+        name: "Student SG",
         category: "Personal Loan",
         creditLimit: 100000,
         currentBalance: 40500,
@@ -255,6 +334,7 @@ export default function ScheduleWorkspace() {
     } else {
       current[studentLoanIndex] = {
         ...current[studentLoanIndex],
+        name: "Student SG",
         creditLimit: 100000,
         startingBalance: 100000,
         currentBalance: 40500,
@@ -559,17 +639,19 @@ export default function ScheduleWorkspace() {
     }
   }, []);
 
-  const getPaymentDueDate = (paymentId: string, index: number) => {
-    if (!biweeklyAnchorDate) return "";
-    try {
-      const anchor = new Date(biweeklyAnchorDate + "T12:00:00");
-      // Cycle is biweekly (14 days), offset of each specific item spreads them nicely across 0-13 days relative to the anchor
-      const offset = index % 14;
-      const dueDate = new Date(anchor.getTime());
-      dueDate.setDate(dueDate.getDate() + offset);
-      return dueDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    } catch (e) {
-      return "";
+  const getPaymentDueDate = (period: "15th" | "30th") => {
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    const monthName = months[activeMonthIdx];
+    
+    if (period === "15th") {
+      return `${monthName} 15`;
+    } else {
+      const lastDay = new Date(activeYear, activeMonthIdx + 1, 0).getDate();
+      const day = Math.min(30, lastDay);
+      return `${monthName} ${day}`;
     }
   };
 
@@ -595,32 +677,51 @@ export default function ScheduleWorkspace() {
     );
   };
 
+  const togglePeriod = (id: string) => {
+    setPayments((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const nextPeriod = p.period === "30th" ? "15th" : "30th";
+          return { ...p, period: nextPeriod };
+        }
+        return p;
+      })
+    );
+  };
+
   const resetCurrentCycle = () => {
     setPayments((prev) =>
-      prev.map((p) => ({ ...p, paid: false, na: false }))
+      prev.map((p) => {
+        if (p.period === activePeriod) {
+          return { ...p, paid: false, na: false };
+        }
+        return p;
+      })
     );
   };
 
   const advanceToNextCycle = () => {
-    if (biweeklyAnchorDate) {
-      try {
-        const currentAnchor = new Date(biweeklyAnchorDate + "T12:00:00");
-        currentAnchor.setDate(currentAnchor.getDate() + 14);
-        const yyyy = currentAnchor.getFullYear();
-        const mm = String(currentAnchor.getMonth() + 1).padStart(2, "0");
-        const dd = String(currentAnchor.getDate()).padStart(2, "0");
-        setBiweeklyAnchorDate(`${yyyy}-${mm}-${dd}`);
-      } catch (e) {
-        console.error("Error advancing cycle date:", e);
+    if (activePeriod === "15th") {
+      setActivePeriod("30th");
+    } else {
+      setActivePeriod("15th");
+      if (activeMonthIdx === 11) {
+        setActiveMonthIdx(0);
+        setActiveYear(prev => prev + 1);
+      } else {
+        setActiveMonthIdx(prev => prev + 1);
       }
     }
+    // Reset payment paid and na statuses for the next cycle
     setPayments((prev) =>
       prev.map((p) => ({ ...p, paid: false, na: false }))
     );
   };
 
-  const calculateTotals = () => {
-    const activePayments = payments.filter((p) => !p.na);
+  const calculatePeriodTotals = (period: "15th" | "30th") => {
+    const periodPayments = payments.filter((p) => p.period === period);
+    const activePayments = periodPayments.filter((p) => !p.na);
+    
     const totalScheduled = activePayments.reduce((sum, p) => sum + p.amount, 0);
     const totalCompleted = activePayments.filter((p) => p.paid).reduce((sum, p) => sum + p.amount, 0);
     const totalRemaining = totalScheduled - totalCompleted;
@@ -637,7 +738,26 @@ export default function ScheduleWorkspace() {
     };
   };
 
-  const totals = calculateTotals();
+  const calculateMonthlyTotals = () => {
+    const activePayments = payments.filter((p) => !p.na);
+    
+    const totalScheduled = activePayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalCompleted = activePayments.filter((p) => p.paid).reduce((sum, p) => sum + p.amount, 0);
+    const totalRemaining = totalScheduled - totalCompleted;
+    
+    const totalIncome = rhonPay + suzPay;
+    const remainingMoney = totalIncome - totalScheduled;
+
+    return {
+      totalIncome,
+      totalScheduled,
+      totalCompleted,
+      totalRemaining,
+      remainingMoney
+    };
+  };
+
+  const totals = calculatePeriodTotals(activePeriod);
 
   const getGroupedItems = <T extends { name: string }>(items: T[]) => {
     const rg: T[] = [];
@@ -1288,7 +1408,6 @@ export default function ScheduleWorkspace() {
 
   const renderPaymentRow = (payment: PaymentItem) => {
     const isNA = !!payment.na;
-    const paymentIndex = payments.indexOf(payment);
     
     const cleanPaymentName = (name: string) => {
       // Strip parenthesized dates like (Jun 12), (Jun. 12), (June 12), etc.
@@ -1299,11 +1418,18 @@ export default function ScheduleWorkspace() {
       return cleaned;
     };
 
+    const owner = getAccountOwner(payment.name);
+    const ownerBadge = owner === "RG" 
+      ? <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-1 rounded-md shrink-0 font-mono">RG</span>
+      : owner === "SG"
+        ? <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-1 rounded-md shrink-0 font-mono">SG</span>
+        : <span className="text-[9px] font-black text-stone-500 bg-stone-50 border border-stone-150 px-1 rounded-md shrink-0 font-mono">SHARED</span>;
+
     return (
       <div 
         key={payment.id} 
         id={`pay_item_${payment.id}`}
-        className={`flex justify-between items-center p-3 rounded-xl border transition duration-150 ${
+        className={`flex justify-between items-center p-2.5 rounded-xl border transition duration-150 ${
           isNA
             ? "bg-stone-50 border-stone-200/60 opacity-45 text-slate-400"
             : payment.paid 
@@ -1311,19 +1437,20 @@ export default function ScheduleWorkspace() {
               : "bg-white border-stone-200 shadow-3xs"
         }`}
       >
-        <div className="flex flex-col gap-1 w-full max-w-[200px]">
+        <div className="flex flex-col gap-1 w-full max-w-[190px]">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`font-bold ${
               isNA
                 ? "text-slate-400 line-through text-xs"
                 : payment.paid 
                   ? "text-slate-500 line-through text-xs" 
-                  : "text-slate-850 text-xs"
+                  : "text-slate-800 text-xs"
             }`}>
               {cleanPaymentName(payment.name)}
             </span>
+            {ownerBadge}
             {isNA && (
-              <span className="text-[9px] font-black uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-md font-mono shrink-0">
+              <span className="text-[8px] font-black uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md font-mono shrink-0">
                 N/A
               </span>
             )}
@@ -1340,23 +1467,37 @@ export default function ScheduleWorkspace() {
                 );
               }}
               disabled={payment.paid || isNA}
-              className={`w-full pl-6 pr-2 py-1 text-xs font-semibold rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+              className={`w-full pl-5 pr-1 py-0.5 text-xs font-semibold rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
                 isNA
                   ? "bg-transparent text-slate-400"
                   : payment.paid 
                     ? "bg-transparent text-slate-500" 
-                    : "bg-stone-50 border border-stone-200 text-slate-800"
+                    : "bg-stone-50 border border-stone-150 text-slate-850"
               }`}
             />
           </div>
         </div>
         
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Period Toggle Badge */}
+          <button
+            type="button"
+            onClick={() => togglePeriod(payment.id)}
+            className={`px-1.5 py-0.5 text-[8px] font-extrabold rounded-lg uppercase tracking-wider border transition cursor-pointer select-none ${
+              payment.period === "15th"
+                ? "bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100"
+                : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+            }`}
+            title={`Assigned to ${payment.period || "15th"} Period. Click to toggle.`}
+          >
+            {payment.period || "15th"}
+          </button>
+
           {/* NA Button Option */}
           <button
             type="button"
             onClick={() => toggleNA(payment.id)}
-            className={`px-2 py-1 text-[9px] font-black rounded-lg uppercase tracking-wider border transition cursor-pointer ${
+            className={`px-1.5 py-0.5 text-[8px] font-black rounded-lg uppercase tracking-wider border transition cursor-pointer ${
               isNA
                 ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
                 : "bg-stone-50 border-stone-200 text-slate-500 hover:bg-stone-100"
@@ -1371,7 +1512,7 @@ export default function ScheduleWorkspace() {
             type="button"
             onClick={() => !isNA && togglePayment(payment.id)}
             disabled={isNA}
-            className={`w-12 h-6 rounded-full relative transition-colors cursor-pointer shrink-0 ${
+            className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer shrink-0 ${
               isNA
                 ? "bg-stone-200 opacity-45 cursor-not-allowed"
                 : payment.paid 
@@ -1379,8 +1520,8 @@ export default function ScheduleWorkspace() {
                   : "bg-stone-300"
             }`}
           >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${
-              payment.paid && !isNA ? "translate-x-6" : "translate-x-0.5"
+            <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${
+              payment.paid && !isNA ? "translate-x-4.5" : "translate-x-0.5"
             }`} />
           </button>
         </div>
@@ -1388,40 +1529,49 @@ export default function ScheduleWorkspace() {
     );
   };
 
+  const monthsList = [
+    "January", "February", "March", "April", "May", "June", 
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const monthlyTotals = calculateMonthlyTotals();
+  const totals15 = calculatePeriodTotals("15th");
+  const totals30 = calculatePeriodTotals("30th");
+
+  const p15DueDate = getPaymentDueDate("15th");
+  const p30DueDate = getPaymentDueDate("30th");
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-16">
       
-      {/* 1. ORIGINAL BIWEEKLY SCHEDULE & PAYMENTS */}
+      {/* 1. TWICE MONTHLY PAYMENTS */}
       <div className="space-y-6">
-        <div className="p-6 bg-cyan-50 border border-cyan-100 rounded-3xl shadow-3xs flex justify-between items-center">
+        <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-3xl shadow-3xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-black text-cyan-900">Bi-Weekly Schedule / Payments</h2>
-            <p className="text-xs text-cyan-700 font-semibold mt-1">Track bills, income, and remaining money</p>
+            <h2 className="text-xl font-black text-indigo-900">Twice Monthly Payments</h2>
+            <p className="text-xs text-indigo-700 font-semibold mt-1">Track bills, income, and remaining money for the 15th and 30th periods</p>
           </div>
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-cyan-500 shadow-sm">
-            <CreditCard className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* MASTER MANUAL SCHEDULE ANCHOR DATE SETTING */}
-        <div className="bg-white border border-stone-200 p-5 rounded-3xl shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-cyan-600" /> Master Biweekly Anchor Date
-            </h3>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-              Define the master start date for all biweekly payment cycle alignments. All due dates recalculate forward from here.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <input
-              type="date"
-              value={biweeklyAnchorDate}
-              onChange={(e) => setBiweeklyAnchorDate(e.target.value)}
-              className="bg-stone-50 border border-stone-200 focus:border-cyan-400 focus:outline-none rounded-xl px-3 py-2 text-xs font-bold text-slate-850 shadow-3xs cursor-pointer"
-            />
-            <div className="text-[10px] font-black uppercase text-cyan-700 bg-cyan-50 border border-cyan-100 px-2.5 py-1.5 rounded-xl">
-              Active Cycle
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-white border border-stone-200 px-3 py-1.5 rounded-2xl shadow-3xs">
+              <Calendar className="w-4 h-4 text-indigo-600 animate-pulse" />
+              <select
+                value={activeMonthIdx}
+                onChange={(e) => setActiveMonthIdx(Number(e.target.value))}
+                className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer outline-none"
+              >
+                {monthsList.map((m, idx) => (
+                  <option key={idx} value={idx}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={activeYear}
+                onChange={(e) => setActiveYear(Number(e.target.value))}
+                className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer outline-none"
+              >
+                {[2026, 2027, 2028, 2029, 2030].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -1430,137 +1580,158 @@ export default function ScheduleWorkspace() {
           
           {/* Income & Summary Column */}
           <div className="space-y-4">
-            <div className="p-6 bg-white border border-stone-200 rounded-3xl shadow-sm">
-              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <div className="p-5 bg-white border border-stone-200 rounded-3xl shadow-3xs">
+              <h3 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-emerald-500" />
-                Paycheck Income
+                Paycheck Income ({monthsList[activeMonthIdx]})
               </h3>
               
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Rhonda's Paycheck</label>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Rhonda's Paycheck</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
                     <input
                       type="number"
                       value={rhonPay || ""}
                       onChange={(e) => setRhonPay(Number(e.target.value) || 0)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-cyan-400 focus:outline-none rounded-xl pl-8 pr-3 py-2 text-sm font-semibold text-slate-800"
+                      className="w-full bg-stone-50 border border-stone-150 focus:border-indigo-400 focus:outline-none rounded-xl pl-7 pr-3 py-1.5 text-xs font-semibold text-slate-800"
                       placeholder="0"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Susan's Paycheck</label>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Susan's Paycheck</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
                     <input
                       type="number"
                       value={suzPay || ""}
                       onChange={(e) => setSuzPay(Number(e.target.value) || 0)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-cyan-400 focus:outline-none rounded-xl pl-8 pr-3 py-2 text-sm font-semibold text-slate-800"
+                      className="w-full bg-stone-50 border border-stone-150 focus:border-indigo-400 focus:outline-none rounded-xl pl-7 pr-3 py-1.5 text-xs font-semibold text-slate-800"
                       placeholder="0"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-stone-100">
+              <div className="mt-4 pt-3.5 border-t border-stone-100">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-slate-600">Total Income</span>
-                  <span className="text-lg font-black text-emerald-600">${totals.totalIncome}</span>
+                  <span className="text-xs font-bold text-slate-500">Total Monthly Income</span>
+                  <span className="text-base font-black text-emerald-600">${monthlyTotals.totalIncome.toLocaleString()}</span>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-sm text-white space-y-4">
-              <div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Scheduled Bills</p>
-                <p className="text-xl font-black">${totals.totalScheduled}</p>
+            {/* Monthly Summary */}
+            <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl shadow-sm text-white space-y-3.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Scheduled Bills</span>
+                <span className="text-sm font-black text-slate-200">${monthlyTotals.totalScheduled.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
+              <div className="flex justify-between items-center text-xs">
                 <span className="font-semibold text-slate-300">Total Paid</span>
-                <span className="font-bold text-emerald-400">${totals.totalCompleted}</span>
+                <span className="font-bold text-emerald-400">${monthlyTotals.totalCompleted.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="font-semibold text-slate-300">Remaining To Pay</span>
-                <span className="font-bold text-rose-400">${totals.totalRemaining}</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-300">Remaining to Pay</span>
+                <span className="font-bold text-rose-400">${monthlyTotals.totalRemaining.toLocaleString()}</span>
               </div>
               
-              <div className="pt-4 border-t border-slate-700 mt-2">
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Available Money</p>
-                <p className={`text-3xl font-black ${totals.remainingMoney >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  ${totals.remainingMoney}
+              <div className="pt-3 border-t border-slate-800 mt-2">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Available Monthly Money</p>
+                <p className={`text-2xl font-black ${monthlyTotals.remainingMoney >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  ${monthlyTotals.remainingMoney.toLocaleString()}
                 </p>
               </div>
+            </div>
+
+            {/* Actions Panel */}
+            <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPayments(prev => prev.map(p => ({ ...p, paid: false, na: false })));
+                }}
+                className="w-full py-2 bg-white border border-stone-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-stone-100 active:scale-[0.98] transition cursor-pointer"
+                title="Unpay all items for the month"
+              >
+                Reset Selected Month
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeMonthIdx === 11) {
+                    setActiveMonthIdx(0);
+                    setActiveYear(prev => prev + 1);
+                  } else {
+                    setActiveMonthIdx(prev => prev + 1);
+                  }
+                  setPayments(prev => prev.map(p => ({ ...p, paid: false, na: false })));
+                }}
+                className="w-full py-2 bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-indigo-700 active:scale-[0.98] transition cursor-pointer"
+                title="Advance to next month and reset bills"
+              >
+                Advance to Next Month
+              </button>
             </div>
           </div>
 
           {/* Payments List Column */}
-          <div className="md:col-span-2 bg-white border border-stone-200 rounded-3xl shadow-sm p-6 max-h-[600px] overflow-y-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <h3 className="font-bold text-slate-800 text-lg">Scheduled Payments</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={resetCurrentCycle}
-                  className="px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-slate-600 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-stone-150 hover:text-slate-850 transition cursor-pointer"
-                  title="Unpay all items and clear temporary NA status"
-                >
-                  Reset Current Cycle
-                </button>
-                <button
-                  type="button"
-                  onClick={advanceToNextCycle}
-                  className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white border border-slate-950 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition cursor-pointer"
-                  title="Advance master date by 14 days and reset all payments & NA status"
-                >
-                  Start Next Cycle
-                </button>
+          <div className="md:col-span-2 space-y-6">
+            
+            {/* 15th Payment Period */}
+            <div className="bg-white border border-stone-200 rounded-3xl shadow-3xs p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-600"></div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">15th Payment Period</h3>
+                  <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg font-mono">
+                    Due: {p15DueDate}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+                  <span>Sched: <strong className="text-slate-800">${totals15.totalScheduled}</strong></span>
+                  <span className="text-stone-300">|</span>
+                  <span>Remaining: <strong className="text-rose-600">${totals15.totalRemaining}</strong></span>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {payments.filter(p => p.period === "15th").length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-3 text-center">No bills assigned to the 15th period. Click the period toggle badge on any bill below to assign it.</p>
+                ) : (
+                  payments.filter(p => p.period === "15th").map(p => renderPaymentRow(p))
+                )}
               </div>
             </div>
-            
-            <div className="space-y-4">
-              {(() => {
-                const groupedPayments = getGroupedItems<PaymentItem>(payments);
-                return (
-                  <>
-                    {/* SECTION 1: RG */}
-                    {groupedPayments.rg.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="px-1 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                          SECTION 1: Rhonda's Payments (RG)
-                        </div>
-                        {groupedPayments.rg.map(p => renderPaymentRow(p))}
-                      </div>
-                    )}
 
-                    {/* SECTION 2: SG */}
-                    {groupedPayments.sg.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="px-1 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          SECTION 2: Susan's Payments (SG)
-                        </div>
-                        {groupedPayments.sg.map(p => renderPaymentRow(p))}
-                      </div>
-                    )}
+            {/* 30th Payment Period */}
+            <div className="bg-white border border-stone-200 rounded-3xl shadow-3xs p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">30th Payment Period</h3>
+                  <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg font-mono">
+                    Due: {p30DueDate}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+                  <span>Sched: <strong className="text-slate-800">${totals30.totalScheduled}</strong></span>
+                  <span className="text-stone-300">|</span>
+                  <span>Remaining: <strong className="text-rose-600">${totals30.totalRemaining}</strong></span>
+                </div>
+              </div>
 
-                    {/* SECTION 3: Other */}
-                    {groupedPayments.other.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="px-1 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
-                          Other Scheduled Payments
-                        </div>
-                        {groupedPayments.other.map(p => renderPaymentRow(p))}
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {payments.filter(p => p.period === "30th").length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-3 text-center">No bills assigned to the 30th period. Click the period toggle badge on any bill above to assign it.</p>
+                ) : (
+                  payments.filter(p => p.period === "30th").map(p => renderPaymentRow(p))
+                )}
+              </div>
             </div>
+
           </div>
         </div>
       </div>

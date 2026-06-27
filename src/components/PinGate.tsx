@@ -13,6 +13,28 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
   const [pinLock, setPinLock] = useState<string>("");
   const [pinError, setPinError] = useState(false);
 
+  const getExistingPin = () => {
+    const profileKey = targetUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+    let storedPin = "";
+    const localProfileStr = localStorage.getItem(profileKey);
+    if (localProfileStr) {
+      try {
+        const parsed = JSON.parse(localProfileStr);
+        if (parsed && parsed.pin) {
+          storedPin = String(parsed.pin);
+        }
+      } catch (e) {}
+    }
+    const legacyPinKey = targetUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+    const dynamicPinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+    
+    let rawPin = storedPin || localStorage.getItem(legacyPinKey) || localStorage.getItem(dynamicPinKey) || "";
+    if (rawPin) {
+      rawPin = String(rawPin).replace(/^["']|["']$/g, "").trim();
+    }
+    return rawPin;
+  };
+
   const handleUnlockAttempt = (e: React.FormEvent) => {
     e.preventDefault();
     if (pinLock.length !== 4 || !/^\d+$/.test(pinLock)) {
@@ -20,8 +42,8 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
       return;
     }
 
+    const existingPin = getExistingPin();
     const pinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
-    const existingPin = localStorage.getItem(pinKey);
 
     if (!existingPin) {
       // First time setup!
@@ -38,7 +60,7 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
     }
   };
 
-  const isSetup = !localStorage.getItem(targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin");
+  const isSetup = !getExistingPin();
 
   return (
     <div className="bg-white p-8 rounded-3xl border border-stone-200 shadow-3xs max-w-sm mx-auto mt-10">

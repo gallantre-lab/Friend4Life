@@ -67,8 +67,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  // Log as warning/info instead of crashing the client when offline/unreachable
+  console.warn('Firestore Operation handled gracefully:', JSON.stringify(errInfo));
 }
 
 /**

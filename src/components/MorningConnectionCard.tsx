@@ -7,6 +7,7 @@ interface MorningConnectionCardProps {
   onAddJournalEntry: (content: string, type: string) => void;
   onBlissInteract: (text: string) => void;
   onSaveSuccess?: () => void;
+  onExit?: () => void;
 }
 
 interface MorningRatingLog {
@@ -35,7 +36,8 @@ export default function MorningConnectionCard({
   currentUser,
   onAddJournalEntry,
   onBlissInteract,
-  onSaveSuccess
+  onSaveSuccess,
+  onExit
 }: MorningConnectionCardProps) {
   // 1-10 Rating states (0 means not selected yet)
   const [energy, setEnergy] = useState<number>(0);
@@ -57,6 +59,7 @@ export default function MorningConnectionCard({
   const [isGeneratingAffirmation, setIsGeneratingAffirmation] = useState(false);
 
   const [isSaved, setIsSaved] = useState(false);
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
   const [history, setHistory] = useState<MorningRatingLog[]>([]);
 
   // Mobile wizard state
@@ -180,6 +183,7 @@ Could you provide a swift, encouraging morning word for my day?`;
 
     // Reset fields & Notify
     setIsSaved(true);
+    setShowSuccessScreen(true);
     setMorningPrayer("");
     setSpiritualFocus("");
     setGratitudePrompt("");
@@ -193,8 +197,6 @@ Could you provide a swift, encouraging morning word for my day?`;
     setShowMobileWizard(false);
     setCurrentStep(1);
 
-    onSaveSuccess?.();
-
     setTimeout(() => {
       setIsSaved(false);
     }, 4500);
@@ -202,6 +204,33 @@ Could you provide a swift, encouraging morning word for my day?`;
 
   // Filter local history for trend
   const userHistory = history.filter(h => h.user === currentUser).slice(0, 5).reverse();
+
+  if (showSuccessScreen) {
+    return (
+      <div className="bg-emerald-50/70 border border-emerald-150 rounded-3xl p-6 text-center space-y-4 max-w-md mx-auto my-6 animate-fade-in shadow-3xs">
+        <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+          <Check className="w-8 h-8 stroke-[3px]" />
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="text-base font-black text-slate-900">Morning Connection Saved!</h3>
+          <p className="text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
+            Your morning intentions, spiritual focus, and energy rating have been securely logged. Your daily overview has been shared with Bliss.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setShowSuccessScreen(false);
+            onSaveSuccess?.();
+            onExit?.();
+          }}
+          className="w-full bg-slate-950 hover:bg-slate-850 text-white font-extrabold py-3 px-4 rounded-xl text-xs transition active:scale-[0.97] cursor-pointer shadow-xs uppercase tracking-wider"
+        >
+          Close & Return to Wellness Hub
+        </button>
+      </div>
+    );
+  }
 
   if (isMobile) {
     return (
@@ -252,8 +281,8 @@ Could you provide a swift, encouraging morning word for my day?`;
 
         {/* Mobile Full Screen Wizard Popup */}
         {showMobileWizard && (
-          <div className="fixed inset-0 z-50 bg-slate-900/65 flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh] md:max-h-[85vh] overflow-hidden border border-stone-100">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 md:p-4 flex items-center justify-center overflow-y-auto animate-fadeIn">
+            <div className="bg-white w-full h-full md:h-auto md:max-h-[85vh] md:max-w-lg md:rounded-3xl flex flex-col overflow-hidden border-0 md:border md:border-stone-100 shadow-none md:shadow-2xl">
               {/* Wizard Header */}
               <div className="px-5 py-4 border-b border-stone-200 flex items-center justify-between shrink-0 bg-slate-900 text-white">
                 <div className="space-y-0.5">
@@ -269,11 +298,10 @@ Could you provide a swift, encouraging morning word for my day?`;
                 <button
                   type="button"
                   onClick={() => setShowMobileWizard(false)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg text-white font-mono text-[10px] uppercase font-bold flex items-center gap-1 cursor-pointer transition-all border border-slate-700/50"
-                  aria-label="Close Wizard"
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition active:scale-95 cursor-pointer border border-slate-700/50"
+                  aria-label="Close"
                 >
-                  <span>Close</span>
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -541,15 +569,27 @@ Could you provide a swift, encouraging morning word for my day?`;
               </div>
 
               {/* Wizard Navigation Footer */}
-              <div className="p-4 border-t border-stone-200 flex items-center justify-between shrink-0 bg-stone-50">
-                <button
-                  type="button"
-                  disabled={currentStep === 1}
-                  onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
-                  className="px-4 py-3 border border-stone-300 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-1 bg-white hover:bg-stone-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back
-                </button>
+              <div className="p-4 border-t border-stone-200 flex flex-wrap gap-2 items-center justify-between shrink-0 bg-stone-50">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMobileWizard(false);
+                      onExit?.();
+                    }}
+                    className="px-3 py-3 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Cancel & Exit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentStep === 1}
+                    onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
+                    className="px-3.5 py-3 border border-stone-300 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-1 bg-white hover:bg-stone-50 disabled:opacity-40 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3 h-3" /> Back
+                  </button>
+                </div>
 
                 {currentStep < 5 ? (
                   <button
@@ -814,21 +854,34 @@ Could you provide a swift, encouraging morning word for my day?`;
         </div>
 
         {/* Save Morning Check-In Button */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-          {(energy === 0 || anxiety === 0) ? (
-            <p className="text-xs font-bold text-amber-600">
-              ⚠️ Please select both Energy and Anxiety levels above to submit.
-            </p>
-          ) : (
-            <div />
-          )}
-          <button
-            type="submit"
-            disabled={energy === 0 || anxiety === 0}
-            className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:opacity-55 disabled:cursor-not-allowed text-white font-extrabold px-6 py-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer"
-          >
-            <Check className="w-4 h-4 text-emerald-300" /> Finish & Save Morning Journey
-          </button>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 w-full">
+          <div>
+            {(energy === 0 || anxiety === 0) ? (
+              <p className="text-xs font-bold text-amber-600">
+                ⚠️ Please select both Energy and Anxiety levels above to submit.
+              </p>
+            ) : (
+              <div />
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            {onExit && (
+              <button
+                type="button"
+                onClick={onExit}
+                className="w-full sm:w-auto px-5 py-3 border border-stone-300 bg-white hover:bg-stone-50 text-slate-700 font-extrabold rounded-xl text-xs transition active:scale-[0.97] cursor-pointer text-center"
+              >
+                Cancel & Exit
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={energy === 0 || anxiety === 0}
+              className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:opacity-55 disabled:cursor-not-allowed text-white font-extrabold px-6 py-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer text-center"
+            >
+              <Check className="w-4 h-4 text-emerald-300" /> Finish & Save Morning Journey
+            </button>
+          </div>
         </div>
 
       </form>

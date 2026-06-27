@@ -4,7 +4,7 @@ import { PantryItem, WeightRecord, UserProfile } from "./types";
 import { 
   Sun, Moon, BookOpen, Scale, Utensils, ShoppingBag, 
   Mic, MicOff, Volume2, VolumeX, AlertCircle, Loader2, Check, MessageCircle, Heart, Key, Compass, ChevronLeft,
-  ArrowLeft, Calendar, FileText, Sparkles, MessageSquare, Plus, ShoppingCart, HelpCircle, UserCheck, Play, Camera, Lock, CreditCard
+  ArrowLeft, Calendar, FileText, Sparkles, MessageSquare, Plus, ShoppingCart, HelpCircle, UserCheck, Play, Camera, Lock, CreditCard, X
 } from "lucide-react";
 
 import VoiceCompanionView from "./components/VoiceCompanionView";
@@ -145,11 +145,29 @@ export default function App() {
   const [isCheckingPin, setIsCheckingPin] = useState(false);
 
   const getExistingPin = (user: "Rhon" | "Suz") => {
-    if (user === "Rhon") {
-      return rhonProfile?.pin || localStorage.getItem("forlife_rhon_pin_v3") || localStorage.getItem("rhon_dynamic_pin") || "";
-    } else {
-      return suzProfile?.pin || localStorage.getItem("forlife_suz_pin_v3") || localStorage.getItem("suz_dynamic_pin") || "";
+    const profileKey = user === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+    let storedPin = "";
+    
+    // Attempt direct extraction from stored profile string
+    const localProfileStr = localStorage.getItem(profileKey);
+    if (localProfileStr) {
+      try {
+        const parsed = JSON.parse(localProfileStr);
+        if (parsed && parsed.pin) {
+          storedPin = String(parsed.pin);
+        }
+      } catch (e) {}
     }
+
+    const statePin = user === "Rhon" ? rhonProfile?.pin : suzProfile?.pin;
+    const legacyPinKey = user === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+    const dynamicPinKey = user === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+
+    let rawPin = storedPin || (statePin ? String(statePin) : "") || localStorage.getItem(legacyPinKey) || localStorage.getItem(dynamicPinKey) || "";
+    if (rawPin) {
+      rawPin = String(rawPin).replace(/^["']|["']$/g, "").trim();
+    }
+    return rawPin;
   };
 
   const requestWorkspaceChange = async (workspace: string) => {
@@ -175,9 +193,14 @@ export default function App() {
     try {
       const pinKey = currentUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
       
-      // Fetch directly from Firestore to check if pin is present in the cloud database
+      // Fetch directly from Firestore with a 6500ms timeout fallback to avoid premature rejection under mobile network handshakes
       const docRef = doc(db, "local_storage", pinKey);
-      const docSnap = await getDoc(docRef);
+      const docSnap = await Promise.race([
+        getDoc(docRef),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Firestore lookup timed out")), 6500)
+        )
+      ]);
       
       let fetchedPin = "";
       if (docSnap.exists()) {
@@ -1036,9 +1059,9 @@ export default function App() {
                 <button 
                   type="button"
                   onClick={() => requestWorkspaceChange("home")}
-                  className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl cursor-pointer transition flex items-center justify-center border border-white/15 text-xs font-black"
+                  className="p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl cursor-pointer transition flex items-center justify-center gap-1.5 border border-rose-500 text-xs font-black shadow-sm"
                 >
-                  ◀ Back to Wellness Hub
+                  <X className="w-4 h-4 shrink-0" /> Close & Return to App
                 </button>
                 <div className="h-6 w-px bg-white/20 hidden md:block" />
                 <div>
@@ -1240,6 +1263,7 @@ export default function App() {
                             // Set Step 10 Evening Inventory active automatically
                             setEveningExpanded(true);
                           }}
+                          onExit={() => requestWorkspaceChange("home")}
                         />
                       </CollapsibleCard>
                     );
