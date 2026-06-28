@@ -118,7 +118,7 @@ export default function MorningConnectionCard({
     }
   };
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = (e?: React.FormEvent, ratingsOnly = false) => {
     if (e) e.preventDefault();
 
     const newLog: MorningRatingLog = {
@@ -127,17 +127,17 @@ export default function MorningConnectionCard({
       user: currentUser,
       ratings: { energy, anxiety },
       connectWithGod: {
-        prayer: morningPrayer.trim(),
-        focus: spiritualFocus.trim(),
-        gratitude: gratitudePrompt.trim()
+        prayer: ratingsOnly ? "" : morningPrayer.trim(),
+        focus: ratingsOnly ? "" : spiritualFocus.trim(),
+        gratitude: ratingsOnly ? "" : gratitudePrompt.trim()
       },
       intentions: {
-        mostImportant,
-        beOfService,
-        characterTrait,
-        higherPowerHelp
+        mostImportant: ratingsOnly ? "" : mostImportant,
+        beOfService: ratingsOnly ? "" : beOfService,
+        characterTrait: ratingsOnly ? "" : characterTrait,
+        higherPowerHelp: ratingsOnly ? "" : higherPowerHelp
       },
-      affirmation: personalizedAffirmation
+      affirmation: ratingsOnly ? "Quick ratings logged!" : personalizedAffirmation
     };
 
     // Save history
@@ -151,7 +151,11 @@ export default function MorningConnectionCard({
     setHistory(updated);
 
     // Save journal entry
-    const journalText = `[☀️ MORNING CHECK-IN]
+    const journalText = ratingsOnly
+      ? `[☀️ QUICK MORNING RATING]
+Ratings: Energy: ${energy}/10, Anxiety: ${anxiety}/10
+(Logged quick energy/anxiety baseline)`
+      : `[☀️ MORNING CHECK-IN]
 Ratings: Energy: ${energy}/10, Anxiety: ${anxiety}/10
 
 ✝ CONNECT WITH GOD:
@@ -171,7 +175,12 @@ Ratings: Energy: ${energy}/10, Anxiety: ${anxiety}/10
 
     // Bliss Interactivity
     const userDisplayName = currentUser === "Rhon" ? "Rhonda" : "Susan";
-    const blissPrompt = `Hey Bliss! I just completed my comprehensive Morning Inventory (${userDisplayName}). 
+    const blissPrompt = ratingsOnly
+      ? `Hey Bliss! I just logged my quick Morning Energy & Anxiety Ratings (${userDisplayName}).
+My ratings are Energy: ${energy}/10 and Anxiety: ${anxiety}/10.
+
+Could you provide a swift, encouraging morning word for my day?`
+      : `Hey Bliss! I just completed my comprehensive Morning Inventory (${userDisplayName}). 
 My ratings are Energy: ${energy}/10, Anxiety: ${anxiety}/10. 
 Here are my intentions for today: I want to practice "${characterTrait || "acceptance"}".
 My daily focus is "${spiritualFocus || "trusting God's plan"}".
@@ -391,6 +400,16 @@ Could you provide a swift, encouraging morning word for my day?`;
                         })}
                       </div>
                     </div>
+
+                    {energy > 0 && anxiety > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleSubmit(undefined, true)}
+                        className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs animate-fadeIn"
+                      >
+                        <Check className="w-4 h-4 text-emerald-200" /> Quick-Submit Ratings Only (Skip Rest)
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -721,6 +740,19 @@ Could you provide a swift, encouraging morning word for my day?`;
             </div>
           </div>
         </div>
+
+        {/* Quick Submit Option for Desktop */}
+        {energy > 0 && anxiety > 0 && (
+          <div className="flex justify-end pt-1 animate-fadeIn">
+            <button
+              type="button"
+              onClick={() => handleSubmit(undefined, true)}
+              className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-black px-4.5 py-3 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
+            >
+              <Check className="w-4 h-4 text-emerald-600" /> Quick-Submit Ratings Only (Skip Rest of Form)
+            </button>
+          </div>
+        )}
 
         {/* SECTION 1: Connect with God */}
         <div className="bg-orange-50/40 border border-orange-100/70 rounded-2xl p-4.5 shadow-3xs space-y-3">

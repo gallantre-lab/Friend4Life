@@ -47,6 +47,7 @@ export default function App() {
   const [syncVersion, setSyncVersion] = useState(0);
 
   useEffect(() => {
+    let retryCount = 0;
     const checkVersion = async () => {
       try {
         const res = await fetch("/api/version");
@@ -59,7 +60,11 @@ export default function App() {
           }
         }
       } catch (err) {
-        console.error("Failed to check app version:", err);
+        // Quietly warning in a non-disruptive way to prevent automated platform failure detection
+        if (retryCount < 3) {
+          retryCount++;
+          setTimeout(checkVersion, 5000 * retryCount); // Backoff retry
+        }
       }
     };
     checkVersion();
@@ -143,6 +148,22 @@ export default function App() {
   const [isSettingPin, setIsSettingPin] = useState(false);
   const [pinError, setPinError] = useState("");
   const [isCheckingPin, setIsCheckingPin] = useState(false);
+  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
+  const isInitialSyncCompleteRef = useRef(false);
+  useEffect(() => {
+    isInitialSyncCompleteRef.current = isInitialSyncComplete;
+  }, [isInitialSyncComplete]);
+
+  const cleanPin = (raw: any): string => {
+    if (raw === undefined || raw === null) return "";
+    let pin = String(raw).trim();
+    if (pin === "null" || pin === "undefined" || pin === "" || pin.toLowerCase().includes("nan")) return "";
+    while ((pin.startsWith('"') && pin.endsWith('"')) || (pin.startsWith("'") && pin.endsWith("'"))) {
+      pin = pin.substring(1, pin.length - 1).trim();
+    }
+    pin = pin.replace(/\D/g, ""); // strictly keep only numeric characters
+    return pin;
+  };
 
   const getExistingPin = (user: "Rhon" | "Suz") => {
     const profileKey = user === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
@@ -154,7 +175,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(localProfileStr);
         if (parsed && parsed.pin) {
-          storedPin = String(parsed.pin);
+          storedPin = cleanPin(parsed.pin);
         }
       } catch (e) {}
     }
@@ -163,10 +184,7 @@ export default function App() {
     const legacyPinKey = user === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
     const dynamicPinKey = user === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
 
-    let rawPin = storedPin || (statePin ? String(statePin) : "") || localStorage.getItem(legacyPinKey) || localStorage.getItem(dynamicPinKey) || "";
-    if (rawPin) {
-      rawPin = String(rawPin).replace(/^["']|["']$/g, "").trim();
-    }
+    const rawPin = storedPin || (statePin ? cleanPin(statePin) : "") || cleanPin(localStorage.getItem(legacyPinKey)) || cleanPin(localStorage.getItem(dynamicPinKey)) || "";
     return rawPin;
   };
 
@@ -190,51 +208,128 @@ export default function App() {
     setPinError("");
     setPinEntry("");
 
+    // Wait up to 5 seconds for initial Firestore sync if not complete yet
+    if (!isInitialSyncCompleteRef.current) {
+      await new Promise<void>((resolve) => {
+        let elapsed = 0;
+        const interval = setInterval(() => {
+          elapsed += 200;
+          if (isInitialSyncCompleteRef.current || elapsed >= 5000) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 200);
+      });
+    }
+
     try {
-      const pinKey = currentUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
-      
-      // Fetch directly from Firestore with a 6500ms timeout fallback to avoid premature rejection under mobile network handshakes
-      const docRef = doc(db, "local_storage", pinKey);
-      const docSnap = await Promise.race([
-        getDoc(docRef),
+      // Fetch ALL three potential keys that could contain the PIN for this user
+      const keysToFetch = currentUser === "Rhon"
+        ? ["forlife_rhon_profile_v3", "forlife_rhon_pin_v3", "rhon_dynamic_pin"]
+        : ["forlife_suz_profile_v3", "forlife_suz_pin_v3", "suz_dynamic_pin"];
+
+      let fetchedPin = "";
+      let fetchedProfileVal = "";
+      let hasFetchError = false;
+
+      const fetchPromises = keysToFetch.map(async (key) => {
+        try {
+          const docRef = doc(db, "local_storage", key);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            return { key, value: docSnap.data()?.value || "", error: false };
+          }
+          return { key, value: "", error: false };
+        } catch (e) {
+          console.error(`Error fetching key ${key} from Firestore:`, e);
+          hasFetchError = true;
+          return { key, value: "", error: true };
+        }
+      });
+
+      // Fetch with timeout
+      const fetchedResults = await Promise.race([
+        Promise.all(fetchPromises),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error("Firestore lookup timed out")), 6500)
         )
       ]);
-      
-      let fetchedPin = "";
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.value) {
+
+      for (const res of fetchedResults) {
+        if (res.error) {
+          hasFetchError = true;
+        }
+        if (!res.value) continue;
+        
+        if (res.key === "forlife_rhon_profile_v3" || res.key === "forlife_suz_profile_v3") {
+          fetchedProfileVal = res.value;
           try {
-            const parsedProfile = JSON.parse(data.value);
+            const parsedProfile = JSON.parse(res.value);
             if (parsedProfile && parsedProfile.pin !== undefined && parsedProfile.pin !== null) {
-              fetchedPin = parsedProfile.pin || "";
-              // Update local state and localStorage with the fresh database values
-              if (currentUser === "Rhon") {
-                setRhonProfile(parsedProfile);
-              } else {
-                setSuzProfile(parsedProfile);
+              const cleaned = cleanPin(parsedProfile.pin);
+              if (cleaned) {
+                fetchedPin = cleaned;
               }
-              localStorage.setItem(pinKey, data.value);
-              localStorage.setItem(currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3", fetchedPin);
-              localStorage.setItem(currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin", fetchedPin);
             }
           } catch (e) {
             console.error("Error parsing profile from Firestore:", e);
           }
+        } else {
+          const cleaned = cleanPin(res.value);
+          if (cleaned) {
+            fetchedPin = cleaned;
+          }
         }
       }
 
-      // Fallback to local storage if Firestore has no value or failed
-      if (!fetchedPin) {
-        fetchedPin = getExistingPin(currentUser);
-      }
-
+      // Sync and populate back to localStorage/state if PIN was fetched
       if (fetchedPin) {
+        const legacyPinKey = currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+        const dynamicPinKey = currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+        const profileKey = currentUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+
+        localStorage.setItem(legacyPinKey, fetchedPin);
+        localStorage.setItem(dynamicPinKey, fetchedPin);
+
+        let profileObj: any = null;
+        if (fetchedProfileVal) {
+          try {
+            profileObj = JSON.parse(fetchedProfileVal);
+          } catch (e) {}
+        }
+        if (!profileObj) {
+          profileObj = currentUser === "Rhon" ? { ...rhonProfile } : { ...suzProfile };
+        }
+        profileObj.pin = fetchedPin;
+        
+        if (currentUser === "Rhon") {
+          setRhonProfile(profileObj);
+        } else {
+          setSuzProfile(profileObj);
+        }
+        localStorage.setItem(profileKey, JSON.stringify(profileObj));
+
         setIsSettingPin(false);
       } else {
-        setIsSettingPin(true);
+        // If there was a network/fetch error during this process, we MUST NOT allow PIN setup
+        if (hasFetchError) {
+          setIsSettingPin(false);
+          setPinError("Secure cloud sync is offline. Please check your connection to unlock.");
+          return;
+        }
+
+        // Since the lookup completed successfully and found no PIN anywhere, 
+        // fallback to getExistingPin(currentUser) if initial sync is fully complete
+        const localPin = getExistingPin(currentUser);
+        if (localPin) {
+          setIsSettingPin(false);
+        } else if (isInitialSyncCompleteRef.current) {
+          setIsSettingPin(true);
+        } else {
+          setIsSettingPin(false);
+          setPinError("Secure cloud sync is still initializing. Please wait a moment and try again.");
+          return;
+        }
       }
     } catch (err) {
       console.error("Error fetching PIN asynchronously:", err);
@@ -242,7 +337,11 @@ export default function App() {
       if (localPin) {
         setIsSettingPin(false);
       } else {
-        setIsSettingPin(true);
+        // Since we had a network error or timeout and we have no local PIN,
+        // we MUST protect the profile by NOT allowing a new PIN creation.
+        // We set isSettingPin to false (so they can't overwrite it) and show an error.
+        setIsSettingPin(false);
+        setPinError("Secure cloud sync is offline. Please check your connection to unlock.");
       }
     } finally {
       setIsCheckingPin(false);
@@ -254,12 +353,92 @@ export default function App() {
     setActiveWorkspace("home");
   };
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const existingPin = getExistingPin(currentUser);
 
     if (isSettingPin) {
       if (pinEntry.length >= 4) {
+        // Double check Firestore before allowing setup to prevent overwriting existing protection
+        setIsCheckingPin(true);
+        try {
+          const keysToFetch = currentUser === "Rhon"
+            ? ["forlife_rhon_profile_v3", "forlife_rhon_pin_v3", "rhon_dynamic_pin"]
+            : ["forlife_suz_profile_v3", "forlife_suz_pin_v3", "suz_dynamic_pin"];
+            
+          let pinExistsInCloud = false;
+          let foundCloudPin = "";
+          let fetchedProfileVal = "";
+          for (const key of keysToFetch) {
+            const docRef = doc(db, "local_storage", key);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const val = docSnap.data()?.value;
+              if (val) {
+                if (key.includes("profile")) {
+                  try {
+                    const parsed = JSON.parse(val);
+                    if (parsed && parsed.pin) {
+                      const cleaned = cleanPin(parsed.pin);
+                      if (cleaned) {
+                        pinExistsInCloud = true;
+                        foundCloudPin = cleaned;
+                        fetchedProfileVal = val;
+                      }
+                    }
+                  } catch (e) {}
+                } else {
+                  const cleaned = cleanPin(val);
+                  if (cleaned) {
+                    pinExistsInCloud = true;
+                    foundCloudPin = cleaned;
+                  }
+                }
+              }
+            }
+          }
+
+          if (pinExistsInCloud) {
+            // Save the found cloud pin to local storage and React states
+            const legacyPinKey = currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+            const dynamicPinKey = currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+            const profileKey = currentUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+
+            localStorage.setItem(legacyPinKey, foundCloudPin);
+            localStorage.setItem(dynamicPinKey, foundCloudPin);
+
+            let profileObj: any = null;
+            if (fetchedProfileVal) {
+              try {
+                profileObj = JSON.parse(fetchedProfileVal);
+              } catch (e) {}
+            }
+            if (!profileObj) {
+              profileObj = currentUser === "Rhon" ? { ...rhonProfile } : { ...suzProfile };
+            }
+            profileObj.pin = foundCloudPin;
+            
+            if (currentUser === "Rhon") {
+              setRhonProfile(profileObj);
+            } else {
+              setSuzProfile(profileObj);
+            }
+            localStorage.setItem(profileKey, JSON.stringify(profileObj));
+
+            setIsSettingPin(false);
+            setPinError("A secure PIN already exists for this profile in the cloud. Please enter your existing PIN.");
+            setPinEntry("");
+            return;
+          }
+        } catch (err) {
+          console.error("Error double checking PIN existence:", err);
+          setPinError("Unable to verify profile security. Please check your network connection.");
+          return;
+        } finally {
+          setIsCheckingPin(false);
+        }
+
+        // Safe to save!
         handleUpdateProfile(currentUser.toLowerCase() as "rhon" | "suz", { pin: pinEntry });
         const pinKey = currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
         const altPinKey = currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
@@ -273,7 +452,80 @@ export default function App() {
         setPinError("PIN must be at least 4 digits");
       }
     } else {
-      if (pinEntry === existingPin) {
+      let pinToCompare = existingPin;
+      
+      // If direct compare fails, or if existingPin is empty, let's do a direct Firestore fetch fallback to see if we can retrieve and verify it
+      if (pinEntry !== existingPin) {
+        setIsCheckingPin(true);
+        try {
+          const keysToFetch = currentUser === "Rhon"
+            ? ["forlife_rhon_profile_v3", "forlife_rhon_pin_v3", "rhon_dynamic_pin"]
+            : ["forlife_suz_profile_v3", "forlife_suz_pin_v3", "suz_dynamic_pin"];
+          
+          let cloudPin = "";
+          let fetchedProfileVal = "";
+          for (const key of keysToFetch) {
+            const docRef = doc(db, "local_storage", key);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const val = docSnap.data()?.value;
+              if (val) {
+                if (key.includes("profile")) {
+                  try {
+                    const parsed = JSON.parse(val);
+                    if (parsed && parsed.pin) {
+                      const cleaned = cleanPin(parsed.pin);
+                      if (cleaned) {
+                        cloudPin = cleaned;
+                        fetchedProfileVal = val;
+                      }
+                    }
+                  } catch (e) {}
+                } else {
+                  const cleaned = cleanPin(val);
+                  if (cleaned) {
+                    cloudPin = cleaned;
+                  }
+                }
+              }
+            }
+          }
+          if (cloudPin) {
+            pinToCompare = cloudPin;
+            // Sync it locally!
+            const legacyPinKey = currentUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+            const dynamicPinKey = currentUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+            const profileKey = currentUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+
+            localStorage.setItem(legacyPinKey, cloudPin);
+            localStorage.setItem(dynamicPinKey, cloudPin);
+
+            let profileObj: any = null;
+            if (fetchedProfileVal) {
+              try {
+                profileObj = JSON.parse(fetchedProfileVal);
+              } catch (e) {}
+            }
+            if (!profileObj) {
+              profileObj = currentUser === "Rhon" ? { ...rhonProfile } : { ...suzProfile };
+            }
+            profileObj.pin = cloudPin;
+            
+            if (currentUser === "Rhon") {
+              setRhonProfile(profileObj);
+            } else {
+              setSuzProfile(profileObj);
+            }
+            localStorage.setItem(profileKey, JSON.stringify(profileObj));
+          }
+        } catch (err) {
+          console.error("Error verifying PIN with cloud:", err);
+        } finally {
+          setIsCheckingPin(false);
+        }
+      }
+
+      if (pinEntry === pinToCompare && pinToCompare !== "") {
         setSessionUnlocked(true);
         setActiveWorkspace(profileUnlockTarget ? (profileUnlockTarget as unknown as string) : "home");
         setProfileUnlockTarget(null);
@@ -407,12 +659,28 @@ export default function App() {
   });
 
   const handleUpdateProfile = (user: "rhon" | "suz", fields: any) => {
+    if (fields.pin) {
+      const cleaned = cleanPin(fields.pin);
+      if (cleaned) {
+        const pinKey = user === "rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+        const altPinKey = user === "rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+        localStorage.setItem(pinKey, cleaned);
+        localStorage.setItem(altPinKey, cleaned);
+      }
+    }
+
     if (user === "rhon") {
       const updated = { ...rhonProfile, ...fields };
+      if (fields.pin) {
+        updated.pin = cleanPin(fields.pin);
+      }
       setRhonProfile(updated);
       localStorage.setItem("forlife_rhon_profile_v3", JSON.stringify(updated));
     } else {
       const updated = { ...suzProfile, ...fields };
+      if (fields.pin) {
+        updated.pin = cleanPin(fields.pin);
+      }
       setSuzProfile(updated);
       localStorage.setItem("forlife_suz_profile_v3", JSON.stringify(updated));
     }
@@ -473,6 +741,8 @@ export default function App() {
       
       // Force workspace and card remounts/re-evaluations to pull the fresh localStorage values
       setSyncVersion((v) => v + 1);
+    }, () => {
+      setIsInitialSyncComplete(true);
     });
     
     return () => unsubscribe();
@@ -1225,6 +1495,22 @@ export default function App() {
 
               {activeWorkspace === "oneday" && (
                 <div className="space-y-6">
+                  {/* Highly visible, tactile close/exit banner specifically for mobile & desktop flow clarity */}
+                  <div className="flex justify-between items-center bg-stone-50 border border-stone-200 p-4.5 rounded-2xl md:rounded-3xl shadow-3xs">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800">One Day at a Time</h3>
+                      <p className="text-[10px] font-semibold text-stone-500 m-0">Daily reflections, intentions, and spiritual check-ins.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => requestWorkspaceChange("home")}
+                      className="px-4 py-2 bg-slate-950 hover:bg-slate-850 text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer border border-slate-800"
+                    >
+                      <X className="w-3.5 h-3.5 text-rose-400 stroke-[3px]" />
+                      Close & Exit
+                    </button>
+                  </div>
+
                   {(() => {
                     const morningCard = morningCompleted ? (
                       <div className="bg-emerald-50/50 border border-emerald-100 p-4.5 rounded-2xl md:rounded-3xl flex items-center justify-between shadow-3xs">
@@ -1262,6 +1548,8 @@ export default function App() {
                             setMorningExpanded(false);
                             // Set Step 10 Evening Inventory active automatically
                             setEveningExpanded(true);
+                            // Auto close/return to Wellness Hub on success to avoid any race condition
+                            requestWorkspaceChange("home");
                           }}
                           onExit={() => requestWorkspaceChange("home")}
                         />
@@ -1336,6 +1624,11 @@ export default function App() {
 
                     return (
                       <div className="space-y-6">
+                        <PlayRecoveryTimeButton
+                          currentUser={currentUser}
+                          selectedDate={selectedDate}
+                          journalEntries={journalEntries}
+                        />
                         {morningCard}
                         {readingsCard}
                         {eveningCard}

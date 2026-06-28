@@ -107,6 +107,7 @@ export default function ProfilesView({
   const [editMeds, setEditMeds] = useState("");
   const [editPreferences, setEditPreferences] = useState("");
   const [editGoalWeight, setEditGoalWeight] = useState<number | "">("");
+  const [editPin, setEditPin] = useState("");
 
   const activeProfile = currentUser === "Rhon" ? rhonProfile : suzProfile;
   const myWeights = weightHistory
@@ -127,12 +128,24 @@ export default function ProfilesView({
   }, [currentUser]);
 
   const handleSaveProfile = (user: "rhon" | "suz") => {
-    onUpdateProfile(user, {
+    const fields: Partial<UserProfile> = {
       age: editAge,
       meds: editMeds,
       preferences: editPreferences,
       goalWeight: editGoalWeight === "" ? undefined : editGoalWeight
-    });
+    };
+
+    if (editPin) {
+      const numericPin = editPin.replace(/\D/g, "");
+      if (numericPin.length === 4) {
+        fields.pin = numericPin;
+      } else {
+        alert("The new security PIN must be exactly 4 numeric digits.");
+        return;
+      }
+    }
+
+    onUpdateProfile(user, fields);
     setEditingUser(null);
   };
 
@@ -143,6 +156,7 @@ export default function ProfilesView({
     setEditMeds(prof.meds);
     setEditPreferences(prof.preferences);
     setEditGoalWeight(prof.goalWeight || "");
+    setEditPin("");
   };
 
   const submitWeight = (e: React.FormEvent) => {
@@ -343,7 +357,7 @@ export default function ProfilesView({
           <h4 className="font-semibold text-slate-700 mb-3 text-sm">
             Updating {editingUser === "rhon" ? "Rhon's" : "Suz's"} profile rules:
           </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-3">
             <div>
               <label className="block text-xs uppercase text-slate-400 tracking-wider mb-1">Age</label>
               <input 
@@ -381,6 +395,17 @@ export default function ProfilesView({
                 onChange={e => setEditPreferences(e.target.value)}
                 placeholder="e.g. Lower sugar, organic focus"
                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase text-slate-400 tracking-wider mb-1 text-amber-600 font-semibold">Change Security PIN</label>
+              <input 
+                type="password" 
+                maxLength={4}
+                value={editPin} 
+                onChange={e => setEditPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="New 4-digit PIN"
+                className="w-full bg-white border border-amber-200 focus:border-amber-400 focus:ring-amber-400 rounded-lg px-2 py-1 text-sm text-slate-700"
               />
             </div>
           </div>

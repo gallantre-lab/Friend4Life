@@ -94,9 +94,13 @@ export async function uploadKeyToCloud(key: string, value: string) {
 /**
  * Sets up a real-time listener for the entire local_storage collection
  */
-export function setupCloudSyncListener(onSync: (key: string, value: string) => void) {
+export function setupCloudSyncListener(
+  onSync: (key: string, value: string) => void,
+  onInitialSyncComplete?: () => void
+) {
   const collectionRef = collection(db, "local_storage");
   const pathForOnSnapshot = "local_storage";
+  let isFirstEmit = true;
   
   return onSnapshot(collectionRef, (snapshot) => {
     snapshot.docChanges().forEach((change) => {
@@ -123,6 +127,13 @@ export function setupCloudSyncListener(onSync: (key: string, value: string) => v
         }
       }
     });
+
+    if (isFirstEmit) {
+      isFirstEmit = false;
+      if (onInitialSyncComplete) {
+        onInitialSyncComplete();
+      }
+    }
   }, (error) => {
     handleFirestoreError(error, OperationType.GET, pathForOnSnapshot);
   });

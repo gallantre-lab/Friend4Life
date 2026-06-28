@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { Shield } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Shield, Loader2 } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebase";
 
 interface PinGateProps {
   targetUser: "Rhon" | "Suz";
@@ -12,6 +14,18 @@ interface PinGateProps {
 export default function PinGate({ targetUser, onUnlock, onCancel, title, description }: PinGateProps) {
   const [pinLock, setPinLock] = useState<string>("");
   const [pinError, setPinError] = useState(false);
+  const [isCheckingCloud, setIsCheckingCloud] = useState(false);
+
+  const cleanPin = (raw: any): string => {
+    if (raw === undefined || raw === null) return "";
+    let pin = String(raw).trim();
+    if (pin === "null" || pin === "undefined" || pin === "" || pin.toLowerCase().includes("nan")) return "";
+    while ((pin.startsWith('"') && pin.endsWith('"')) || (pin.startsWith("'") && pin.endsWith("'"))) {
+      pin = pin.substring(1, pin.length - 1).trim();
+    }
+    pin = pin.replace(/\D/g, ""); // strictly keep only numeric characters
+    return pin;
+  };
 
   const getExistingPin = () => {
     const profileKey = targetUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
@@ -21,32 +35,166 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
       try {
         const parsed = JSON.parse(localProfileStr);
         if (parsed && parsed.pin) {
-          storedPin = String(parsed.pin);
+          storedPin = cleanPin(parsed.pin);
         }
       } catch (e) {}
     }
     const legacyPinKey = targetUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
     const dynamicPinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
     
-    let rawPin = storedPin || localStorage.getItem(legacyPinKey) || localStorage.getItem(dynamicPinKey) || "";
-    if (rawPin) {
-      rawPin = String(rawPin).replace(/^["']|["']$/g, "").trim();
-    }
+    const rawPin = storedPin || cleanPin(localStorage.getItem(legacyPinKey)) || cleanPin(localStorage.getItem(dynamicPinKey)) || "";
     return rawPin;
   };
 
-  const handleUnlockAttempt = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchCloudPinIfNeeded = async () => {
+      const localPin = getExistingPin();
+      if (localPin) return; // already synced locally
+
+      setIsCheckingCloud(true);
+      try {
+        const keysToFetch = targetUser === "Rhon"
+          ? ["forlife_rhon_profile_v3", "forlife_rhon_pin_v3", "rhon_dynamic_pin"]
+          : ["forlife_suz_profile_v3", "forlife_suz_pin_v3", "suz_dynamic_pin"];
+
+        let cloudPin = "";
+        let fetchedProfileVal = "";
+        for (const key of keysToFetch) {
+          const docRef = doc(db, "local_storage", key);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const val = docSnap.data()?.value;
+            if (val) {
+              if (key.includes("profile")) {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (parsed && parsed.pin) {
+                    const cleaned = cleanPin(parsed.pin);
+                    if (cleaned) {
+                      cloudPin = cleaned;
+                      fetchedProfileVal = val;
+                    }
+                  }
+                } catch (e) {}
+              } else {
+                const cleaned = cleanPin(val);
+                if (cleaned) {
+                  cloudPin = cleaned;
+                }
+              }
+            }
+          }
+        }
+
+        if (cloudPin) {
+          const legacyPinKey = targetUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+          const dynamicPinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+          const profileKey = targetUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+
+          localStorage.setItem(legacyPinKey, cloudPin);
+          localStorage.setItem(dynamicPinKey, cloudPin);
+          
+          let profileObj: any = null;
+          if (fetchedProfileVal) {
+            try {
+              profileObj = JSON.parse(fetchedProfileVal);
+            } catch (e) {}
+          }
+          if (profileObj) {
+            profileObj.pin = cloudPin;
+            localStorage.setItem(profileKey, JSON.stringify(profileObj));
+          }
+          
+          // force re-render
+          setPinLock("");
+        }
+      } catch (err) {
+        console.error("PinGate: Error fetching cloud PIN on mount:", err);
+      } finally {
+        setIsCheckingCloud(false);
+      }
+    };
+
+    fetchCloudPinIfNeeded();
+  }, [targetUser]);
+
+  const handleUnlockAttempt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pinLock.length !== 4 || !/^\d+$/.test(pinLock)) {
       setPinError(true);
       return;
     }
 
-    const existingPin = getExistingPin();
-    const pinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+    setIsCheckingCloud(true);
+    let existingPin = getExistingPin();
+
+    if (pinLock !== existingPin) {
+      try {
+        const keysToFetch = targetUser === "Rhon"
+          ? ["forlife_rhon_profile_v3", "forlife_rhon_pin_v3", "rhon_dynamic_pin"]
+          : ["forlife_suz_profile_v3", "forlife_suz_pin_v3", "suz_dynamic_pin"];
+
+        let cloudPin = "";
+        let fetchedProfileVal = "";
+        for (const key of keysToFetch) {
+          const docRef = doc(db, "local_storage", key);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const val = docSnap.data()?.value;
+            if (val) {
+              if (key.includes("profile")) {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (parsed && parsed.pin) {
+                    const cleaned = cleanPin(parsed.pin);
+                    if (cleaned) {
+                      cloudPin = cleaned;
+                      fetchedProfileVal = val;
+                    }
+                  }
+                } catch (e) {}
+              } else {
+                const cleaned = cleanPin(val);
+                if (cleaned) {
+                  cloudPin = cleaned;
+                }
+              }
+            }
+          }
+        }
+
+        if (cloudPin) {
+          existingPin = cloudPin;
+          const legacyPinKey = targetUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+          const dynamicPinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+          const profileKey = targetUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+
+          localStorage.setItem(legacyPinKey, cloudPin);
+          localStorage.setItem(dynamicPinKey, cloudPin);
+          
+          let profileObj: any = null;
+          if (fetchedProfileVal) {
+            try {
+              profileObj = JSON.parse(fetchedProfileVal);
+            } catch (e) {}
+          }
+          if (profileObj) {
+            profileObj.pin = cloudPin;
+            localStorage.setItem(profileKey, JSON.stringify(profileObj));
+          }
+        }
+      } catch (err) {
+        console.error("PinGate: Cloud verify fallback error:", err);
+      } finally {
+        setIsCheckingCloud(false);
+      }
+    } else {
+      setIsCheckingCloud(false);
+    }
 
     if (!existingPin) {
       // First time setup!
+      const pinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
       localStorage.setItem(pinKey, pinLock);
       setPinError(false);
       onUnlock();
@@ -85,15 +233,38 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
           value={pinLock}
           onChange={(e) => setPinLock(e.target.value)}
           placeholder="••••"
-          className="w-full text-center tracking-widest text-2xl py-3 bg-stone-50 border border-stone-200 rounded-xl focus:border-indigo-400 focus:outline-none"
+          className="w-full text-center tracking-widest text-2xl py-3 bg-stone-50 border border-stone-200 rounded-xl focus:border-indigo-400 focus:outline-none disabled:opacity-50"
           autoFocus
+          disabled={isCheckingCloud}
         />
-        {pinError && <p className="text-[10px] text-rose-500 font-bold text-center m-0">Incorrect PIN. Try again.</p>}
-        <button type="submit" className="w-full py-3 bg-slate-900 text-white font-black rounded-xl text-sm hover:bg-slate-800 transition cursor-pointer">
-          {isSetup ? "Save PIN & Unlock" : "Unlock"}
+        {pinError && !isCheckingCloud && <p className="text-[10px] text-rose-500 font-bold text-center m-0">Incorrect PIN. Try again.</p>}
+        {isCheckingCloud && (
+          <div className="flex items-center justify-center gap-1.5 text-stone-500 text-xs font-semibold py-1">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+            <span>Checking security cloud...</span>
+          </div>
+        )}
+        <button 
+          type="submit" 
+          disabled={isCheckingCloud}
+          className="w-full py-3 bg-slate-900 text-white font-black rounded-xl text-sm hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
+        >
+          {isCheckingCloud ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Verifying...
+            </>
+          ) : (
+            isSetup ? "Save PIN & Unlock" : "Unlock"
+          )}
         </button>
         {onCancel && (
-          <button type="button" onClick={onCancel} className="w-full py-2 text-stone-500 font-bold text-xs hover:text-stone-700 transition cursor-pointer">
+          <button 
+            type="button" 
+            onClick={onCancel} 
+            disabled={isCheckingCloud}
+            className="w-full py-2 text-stone-500 font-bold text-xs hover:text-stone-700 transition cursor-pointer disabled:opacity-50"
+          >
             Cancel
           </button>
         )}
