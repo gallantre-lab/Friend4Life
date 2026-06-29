@@ -143,6 +143,27 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<string>("home");
   const [profileUnlockTarget, setProfileUnlockTarget] = useState<"Rhon" | "Suz" | null>(null);
 
+  const [showCloseConfirmWorkspace, setShowCloseConfirmWorkspace] = useState<string | null>(null);
+
+  const handleCloseWorkspaceClick = (workspace: string) => {
+    // If it's a section where they may have active inputs, prompt them to avoid accidental loss
+    const sectionsWithForms = ["morning", "readings", "evening", "notes", "schedule", "profiles"];
+    if (sectionsWithForms.includes(workspace)) {
+      setShowCloseConfirmWorkspace(workspace);
+    } else {
+      handleConfirmClose(workspace);
+    }
+  };
+
+  const handleConfirmClose = (workspace: string) => {
+    setShowCloseConfirmWorkspace(null);
+    if (["morning", "readings", "evening"].includes(workspace)) {
+      setActiveWorkspace("oneday");
+    } else {
+      setActiveWorkspace("home");
+    }
+  };
+
   const [sessionUnlocked, setSessionUnlocked] = useState(false);
   const [pinEntry, setPinEntry] = useState("");
   const [isSettingPin, setIsSettingPin] = useState(false);
@@ -1320,24 +1341,26 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* FULL-SCREEN WORKSPACE FOCUS CONTAINER FRAME */
-          <div className="space-y-4 animate-fade-in relative z-20">
-            
+          /* UNIVERSAL FULL-SCREEN POPUP ENTRY SYSTEM OVERLAY (MOBILE-FIRST FOCUS FRAME) */
+          <div className="fixed inset-0 bg-stone-50 md:bg-stone-50/50 md:backdrop-blur-md z-[90] flex flex-col overflow-hidden animate-fade-in font-sans">
             {/* Header controls inside the full screen workspace representing strict demands */}
-            <div className="bg-slate-900 text-white shadow-md rounded-2xl p-4.5 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+            <div className="bg-slate-900 text-white shadow-md flex flex-col shrink-0">
+              <div className="px-4 py-3 flex items-center justify-between border-b border-white/10 gap-2">
                 <button 
                   type="button"
-                  onClick={() => requestWorkspaceChange("home")}
-                  className="p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl cursor-pointer transition flex items-center justify-center gap-1.5 border border-rose-500 text-xs font-black shadow-sm"
+                  onClick={() => handleCloseWorkspaceClick(activeWorkspace)}
+                  className="px-3 md:px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl cursor-pointer transition flex items-center justify-center gap-1.5 border border-rose-500 text-xs font-black shadow-sm"
                 >
-                  <X className="w-4 h-4 shrink-0" /> Close & Return to App
+                  <X className="w-4 h-4 shrink-0 stroke-[3px]" />
+                  <span className="hidden xs:inline">Close & Return</span>
+                  <span className="xs:hidden">Close</span>
                 </button>
-                <div className="h-6 w-px bg-white/20 hidden md:block" />
-                <div>
-                  <span className="text-[10px] text-indigo-300 font-extrabold uppercase font-mono tracking-wider block">Currently focusing on</span>
-                  <h2 className="text-sm font-black m-0 leading-tight">
+                
+                <div className="text-center flex-1 min-w-0">
+                  <span className="text-[9px] text-indigo-300 font-extrabold uppercase font-mono tracking-wider block">Currently focusing on</span>
+                  <h2 className="text-[11px] sm:text-xs md:text-sm font-black m-0 leading-tight truncate">
                     {activeWorkspace === "chat" && "💬 Chat with Bliss Companion"}
+                    {activeWorkspace === "oneday" && "☀️ One Day at a Time"}
                     {activeWorkspace === "morning" && "☀️ Morning Connection & Intention"}
                     {activeWorkspace === "readings" && "📖 Daily Recovery Readings"}
                     {activeWorkspace === "pantry" && "🧺 Pantry & Meal Planning"}
@@ -1345,43 +1368,11 @@ export default function App() {
                     {activeWorkspace === "weight" && "⚖️ Weight Progress & Bio Metrics"}
                     {activeWorkspace === "evening" && "🌙 Evening Check-In & Step 10"}
                     {activeWorkspace === "calendar" && "📅 Integrated Activity Calendar"}
+                    {activeWorkspace === "schedule" && "💳 Bi-Weekly Payments"}
+                    {activeWorkspace === "notes" && "📝 Notes & Journaling"}
+                    {activeWorkspace === "profiles" && "👤 Profiles & Settings"}
                   </h2>
                 </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 bg-white/5 p-1.5 rounded-xl border border-white/10">
-                <div className="flex items-center gap-1">
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      const d = new Date(selectedDate + "T00:00:00");
-                      d.setDate(d.getDate() - 1);
-                      setSelectedDate(d.toISOString().substring(0, 10));
-                    }}
-                    className="p-1 px-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-black transition cursor-pointer"
-                  >
-                    ◄
-                  </button>
-                  <input 
-                    type="date" 
-                    value={selectedDate}
-                    onChange={(e) => { if(e.target.value) setSelectedDate(e.target.value); }}
-                    className="bg-slate-950 border border-white/20 rounded-lg p-1 text-xs text-white font-extrabold focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer text-center"
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      const d = new Date(selectedDate + "T00:00:00");
-                      d.setDate(d.getDate() + 1);
-                      setSelectedDate(d.toISOString().substring(0, 10));
-                    }}
-                    className="p-1 px-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-black transition cursor-pointer"
-                  >
-                    ►
-                  </button>
-                </div>
-
-                <div className="h-4 w-px bg-white/10" />
 
                 <button
                   type="button"
@@ -1390,15 +1381,51 @@ export default function App() {
                     speakText(flashMsg);
                     alert(flashMsg);
                   }}
-                  className="px-3.5 py-1 text-stone-900 bg-amber-400 font-extrabold text-xs uppercase tracking-wider rounded-lg hover:bg-amber-300 transition cursor-pointer flex items-center gap-1.5"
+                  className="px-3 md:px-4 py-2 text-stone-900 bg-amber-400 font-extrabold text-xs uppercase tracking-wider rounded-xl hover:bg-amber-300 active:scale-95 transition cursor-pointer flex items-center gap-1"
                 >
-                  <Check className="w-3.5 h-3.5 stroke-[3px]" /> Save & Sync
+                  <Check className="w-3.5 h-3.5 stroke-[3px]" />
+                  <span className="hidden xs:inline">Save & Sync</span>
+                  <span className="xs:hidden">Sync</span>
+                </button>
+              </div>
+
+              {/* Date Selector Row */}
+              <div className="px-4 py-2 bg-slate-950 flex items-center justify-center gap-2 border-b border-stone-800 shrink-0">
+                <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider font-mono">Date Focus:</span>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(selectedDate + "T00:00:00");
+                    d.setDate(d.getDate() - 1);
+                    setSelectedDate(d.toISOString().substring(0, 10));
+                  }}
+                  className="p-1 px-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-black transition cursor-pointer text-white"
+                >
+                  ◄
+                </button>
+                <input 
+                  type="date" 
+                  value={selectedDate}
+                  onChange={(e) => { if(e.target.value) setSelectedDate(e.target.value); }}
+                  className="bg-slate-900 border border-white/20 rounded-lg py-1 px-2 text-xs text-white font-extrabold focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer text-center"
+                />
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(selectedDate + "T00:00:00");
+                    d.setDate(d.getDate() + 1);
+                    setSelectedDate(d.toISOString().substring(0, 10));
+                  }}
+                  className="p-1 px-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-black transition cursor-pointer text-white"
+                >
+                  ►
                 </button>
               </div>
             </div>
 
-            {/* Sub-panels display */}
-            <div key={`${currentUser}_${activeWorkspace}_${syncVersion}`} className="bg-white border border-stone-200 p-5 rounded-3xl shadow-3xs min-h-[400px]">
+            {/* Scrollable Container with spacing specifically optimized for keyboard focus */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 md:py-8 space-y-6 pb-24 bg-stone-50">
+              <div key={`${currentUser}_${activeWorkspace}_${syncVersion}`} className="max-w-5xl mx-auto bg-white border border-stone-200 p-4 sm:p-6 md:p-8 rounded-3xl shadow-3xs min-h-[400px]">
               {activeWorkspace === "chat" && (
                 <div className="space-y-4">
                   <div className="flex flex-col items-center justify-center py-2.5 bg-slate-50 border border-stone-150 rounded-2xl">
@@ -1503,7 +1530,7 @@ export default function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => requestWorkspaceChange("home")}
+                      onClick={() => handleCloseWorkspaceClick("oneday")}
                       className="px-4 py-2 bg-slate-950 hover:bg-slate-850 text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer border border-slate-800"
                     >
                       <X className="w-3.5 h-3.5 text-rose-400 stroke-[3px]" />
@@ -1511,130 +1538,174 @@ export default function App() {
                     </button>
                   </div>
 
-                  {(() => {
-                    const morningCard = morningCompleted ? (
-                      <div className="bg-emerald-50/50 border border-emerald-100 p-4.5 rounded-2xl md:rounded-3xl flex items-center justify-between shadow-3xs">
+                  <PlayRecoveryTimeButton
+                    currentUser={currentUser}
+                    selectedDate={selectedDate}
+                    journalEntries={journalEntries}
+                  />
+
+                  <div className="space-y-4">
+                    {/* Step 1: Morning Inventory */}
+                    <div className={`p-5 rounded-3xl border transition-all ${morningCompleted ? 'bg-emerald-50/40 border-emerald-150' : 'bg-amber-50/40 border-amber-150'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                            <Check className="w-5 h-5 stroke-[3px]" />
+                          <div className={`p-3 rounded-2xl ${morningCompleted ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                            <Sun className="w-6 h-6 stroke-[2.5px]" />
                           </div>
                           <div>
-                            <h3 className="font-extrabold text-sm md:text-base text-slate-900 tracking-tight leading-snug">
+                            <h3 className="font-extrabold text-sm md:text-base text-slate-900 leading-tight">
                               1. Morning Inventory – Connected with God & Intention
                             </h3>
-                            <span className="inline-block mt-0.5 text-[10px] font-black tracking-widest uppercase text-emerald-600 font-mono">
-                              ✓ Completed for Today
-                            </span>
+                            <p className="text-xs text-stone-500 font-semibold m-0 mt-0.5">Energy, anxiety, prayers, spiritual focus and service</p>
                           </div>
                         </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase ${morningCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-850'}`}>
+                            {morningCompleted ? "✓ Completed" : "Pending Action"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveWorkspace("morning")}
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition shadow-3xs cursor-pointer"
+                          >
+                            {morningCompleted ? "Review / Edit" : "Open Form"}
+                          </button>
+                        </div>
                       </div>
-                    ) : (
-                      <CollapsibleCard
-                        id="morning-journey"
-                        title="1. Morning Inventory – Connect With God & Intention Setting"
-                        icon={<Sun className="w-5 h-5 text-amber-500" />}
-                        isOpen={morningExpanded}
-                        onToggle={() => setMorningExpanded(!morningExpanded)}
-                        themeColor="amber"
-                        badge="Pending Required Step"
-                      >
-                        <MorningConnectionCard
-                          currentUser={currentUser}
-                          onAddJournalEntry={handleAddJournalEntry}
-                          onBlissInteract={triggerBlissSpeechInteraction}
-                          onSaveSuccess={() => {
-                            localStorage.setItem(`forlife_morning_completed_${currentUser}_${selectedDate}`, "true");
-                            setMorningCompleted(true);
-                            setMorningExpanded(false);
-                            // Set Step 10 Evening Inventory active automatically
-                            setEveningExpanded(true);
-                            // Auto close/return to Wellness Hub on success to avoid any race condition
-                            requestWorkspaceChange("home");
-                          }}
-                          onExit={() => requestWorkspaceChange("home")}
-                        />
-                      </CollapsibleCard>
-                    );
+                    </div>
 
-                    const readingsCard = (
-                      <CollapsibleCard
-                        id="daily-readings"
-                        title="2. Daily Readings & Guidance Notes (Optional)"
-                        icon={<BookOpen className="w-5 h-5 text-indigo-500" />}
-                        isOpen={readingsExpanded}
-                        onToggle={() => setReadingsExpanded(!readingsExpanded)}
-                        themeColor="indigo"
-                        badge={readingsCompleted ? "✓ Read (Completed)" : "Optional / Reviewable"}
-                      >
-                        <DailyReadingsCard
-                          currentUser={currentUser}
-                          onBlissInteract={triggerBlissSpeechInteraction}
-                          selectedDate={selectedDate}
-                          setSelectedDate={setSelectedDate}
-                          onAddEntry={handleAddJournalEntry}
-                          onCompleteSuccess={() => {
-                            localStorage.setItem(`forlife_readings_completed_${currentUser}_${selectedDate}`, "true");
-                            setReadingsCompleted(true);
-                            setReadingsExpanded(false); // Automatically minimize Daily Readings after completion
-                          }}
-                        />
-                      </CollapsibleCard>
-                    );
-
-                    const eveningCard = (
-                      <CollapsibleCard
-                        id="evening-inventory"
-                        title="3. Step 10 Evening Inventory"
-                        icon={<Moon className="w-5 h-5 text-rose-500" />}
-                        isOpen={eveningExpanded}
-                        onToggle={() => {
-                          if (morningCompleted) {
-                            setEveningExpanded(!eveningExpanded);
-                          } else {
-                            alert("Please complete 1. Morning Inventory first!");
-                          }
-                        }}
-                        themeColor="rose"
-                        badge={eveningCompleted ? "✓ Completed" : "Pending Required Step"}
-                      >
-                        <EveningInventoryCard
-                          currentUser={currentUser}
-                          onAddJournalEntry={handleAddJournalEntry}
-                          onBlissInteract={triggerBlissSpeechInteraction}
-                          onSaveSuccess={() => {
-                            // 1. Mark day as complete
-                            localStorage.setItem(`forlife_evening_completed_${currentUser}_${selectedDate}`, "true");
-                            setEveningCompleted(true);
-                            setEveningExpanded(false);
-
-                            // 2. Prepare for next day automatically
-                            const current = new Date(selectedDate + "T12:00:00");
-                            current.setDate(current.getDate() + 1);
-                            const nextDateStr = current.toISOString().split("T")[0];
-                            setSelectedDate(nextDateStr);
-
-                            // 3. System closes daily workflow and returns to home Wellness Hub bento grid
-                            requestWorkspaceChange("home");
-
-                            alert("All steps completed for today! System has closed the daily workflow and prepped for tomorrow.");
-                          }}
-                        />
-                      </CollapsibleCard>
-                    );
-
-                    return (
-                      <div className="space-y-6">
-                        <PlayRecoveryTimeButton
-                          currentUser={currentUser}
-                          selectedDate={selectedDate}
-                          journalEntries={journalEntries}
-                        />
-                        {morningCard}
-                        {readingsCard}
-                        {eveningCard}
+                    {/* Step 2: Daily Readings */}
+                    <div className={`p-5 rounded-3xl border transition-all ${readingsCompleted ? 'bg-emerald-50/40 border-emerald-150' : 'bg-indigo-50/40 border-indigo-150'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-3 rounded-2xl ${readingsCompleted ? 'bg-emerald-500/10 text-emerald-600' : 'bg-indigo-500/10 text-indigo-600'}`}>
+                            <BookOpen className="w-6 h-6 stroke-[2.5px]" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-sm md:text-base text-slate-900 leading-tight">
+                              2. Daily Readings & Guidance Notes
+                            </h3>
+                            <p className="text-xs text-stone-500 font-semibold m-0 mt-0.5">Spiritual readings, personal focus notes & reflections</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase ${readingsCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-850'}`}>
+                            {readingsCompleted ? "✓ Completed" : "Optional"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveWorkspace("readings")}
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-850 text-white text-xs font-black rounded-xl transition shadow-3xs cursor-pointer"
+                          >
+                            {readingsCompleted ? "Review / Edit" : "Open Form"}
+                          </button>
+                        </div>
                       </div>
-                    );
-                  })()}
+                    </div>
+
+                    {/* Step 3: Step 10 Evening Inventory */}
+                    <div className={`p-5 rounded-3xl border transition-all ${eveningCompleted ? 'bg-emerald-50/40 border-emerald-150' : 'bg-rose-50/40 border-rose-150'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-3 rounded-2xl ${eveningCompleted ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                            <Moon className="w-6 h-6 stroke-[2.5px]" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-sm md:text-base text-slate-900 leading-tight">
+                              3. Step 10 Evening Inventory
+                            </h3>
+                            <p className="text-xs text-stone-500 font-semibold m-0 mt-0.5">Daily review of fears, resentments, and accomplishments</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase ${eveningCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-850'}`}>
+                            {eveningCompleted ? "✓ Completed" : "Pending Action"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (morningCompleted) {
+                                setActiveWorkspace("evening");
+                              } else {
+                                alert("Please complete 1. Morning Inventory first!");
+                              }
+                            }}
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-850 text-white text-xs font-black rounded-xl transition shadow-3xs cursor-pointer"
+                          >
+                            {eveningCompleted ? "Review / Edit" : "Open Form"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeWorkspace === "morning" && (
+                <div className="space-y-6">
+                  <MorningConnectionCard
+                    currentUser={currentUser}
+                    onAddJournalEntry={handleAddJournalEntry}
+                    onBlissInteract={triggerBlissSpeechInteraction}
+                    onSaveSuccess={() => {
+                      localStorage.setItem(`forlife_morning_completed_${currentUser}_${selectedDate}`, "true");
+                      setMorningCompleted(true);
+                      setMorningExpanded(false);
+                      // Set Step 10 Evening Inventory active automatically
+                      setEveningExpanded(true);
+                      // Return smoothly to oneday
+                      setActiveWorkspace("oneday");
+                      alert("Morning Inventory saved successfully!");
+                    }}
+                    onExit={() => setActiveWorkspace("oneday")}
+                  />
+                </div>
+              )}
+
+              {activeWorkspace === "readings" && (
+                <div className="space-y-6">
+                  <DailyReadingsCard
+                    currentUser={currentUser}
+                    onBlissInteract={triggerBlissSpeechInteraction}
+                    selectedDate={selectedDate}
+                    setSelectedDate={setSelectedDate}
+                    onAddEntry={handleAddJournalEntry}
+                    onCompleteSuccess={() => {
+                      localStorage.setItem(`forlife_readings_completed_${currentUser}_${selectedDate}`, "true");
+                      setReadingsCompleted(true);
+                      setReadingsExpanded(false);
+                      // Return smoothly to oneday
+                      setActiveWorkspace("oneday");
+                      alert("Daily Readings completed!");
+                    }}
+                  />
+                </div>
+              )}
+
+              {activeWorkspace === "evening" && (
+                <div className="space-y-6">
+                  <EveningInventoryCard
+                    currentUser={currentUser}
+                    onAddJournalEntry={handleAddJournalEntry}
+                    onBlissInteract={triggerBlissSpeechInteraction}
+                    onSaveSuccess={() => {
+                      // 1. Mark day as complete
+                      localStorage.setItem(`forlife_evening_completed_${currentUser}_${selectedDate}`, "true");
+                      setEveningCompleted(true);
+                      setEveningExpanded(false);
+
+                      // 2. Prepare for next day automatically
+                      const current = new Date(selectedDate + "T12:00:00");
+                      current.setDate(current.getDate() + 1);
+                      const nextDateStr = current.toISOString().split("T")[0];
+                      setSelectedDate(nextDateStr);
+
+                      // 3. Return smoothly to oneday
+                      setActiveWorkspace("oneday");
+
+                      alert("All steps completed for today! System has closed the daily workflow and prepped for tomorrow.");
+                    }}
+                  />
                 </div>
               )}
 
@@ -1709,9 +1780,9 @@ export default function App() {
                 />
               )}
             </div>
-
           </div>
-        )}
+        </div>
+      )}
 
       </main>
 
@@ -1775,6 +1846,37 @@ export default function App() {
             setIsSpeakingOut(false);
           }}
         />
+      )}
+
+      {/* GLOBAL CLOSE WORKSPACE CONFIRMATION MODAL */}
+      {showCloseConfirmWorkspace && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">⚠️</div>
+              <h3 className="text-base font-black text-slate-900">Exit This Section?</h3>
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                Are you sure you want to close this form? Any unsaved entries you have typed in this current form will be lost.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCloseConfirmWorkspace(null)}
+                className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold text-slate-600 transition cursor-pointer"
+              >
+                Keep Editing
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmClose(showCloseConfirmWorkspace)}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl shadow-sm transition cursor-pointer"
+              >
+                Discard & Exit
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* GLOBAL DELETE CONFIRMATION MODAL */}

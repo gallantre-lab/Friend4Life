@@ -208,6 +208,27 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
     }
   };
 
+  const handleResetPinToDefault = () => {
+    const legacyPinKey = targetUser === "Rhon" ? "forlife_rhon_pin_v3" : "forlife_suz_pin_v3";
+    const dynamicPinKey = targetUser === "Rhon" ? "rhon_dynamic_pin" : "suz_dynamic_pin";
+    const profileKey = targetUser === "Rhon" ? "forlife_rhon_profile_v3" : "forlife_suz_profile_v3";
+
+    localStorage.setItem(legacyPinKey, "1234");
+    localStorage.setItem(dynamicPinKey, "1234");
+
+    const localProfileStr = localStorage.getItem(profileKey);
+    if (localProfileStr) {
+      try {
+        const parsed = JSON.parse(localProfileStr);
+        parsed.pin = "1234";
+        localStorage.setItem(profileKey, JSON.stringify(parsed));
+      } catch (e) {}
+    }
+    alert(`PIN for ${targetUser === "Rhon" ? "Rhonda" : "Susan"} has been reset to 1234 locally!`);
+    setPinLock("");
+    setPinError(false);
+  };
+
   const isSetup = !getExistingPin();
 
   return (
@@ -268,6 +289,15 @@ export default function PinGate({ targetUser, onUnlock, onCancel, title, descrip
             Cancel
           </button>
         )}
+        <div className="text-center pt-2">
+          <button
+            type="button"
+            onClick={handleResetPinToDefault}
+            className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer transition bg-none border-none p-0"
+          >
+            Forgot PIN? Reset to default 1234
+          </button>
+        </div>
       </form>
     </div>
   );
